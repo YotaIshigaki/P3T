@@ -111,7 +111,7 @@ bool collisionDetermination(Tpsys & pp,
             PS::F64 R = r1 / ( f * r2 );
             if ( R < R_min ){
                 if ( ( col_pair == std::make_pair(i, pj_id) || col_pair == std::make_pair(pj_id, i) )
-                     && dr*dv > 0. ) continue;
+                     || dr*dv > 0. ) continue;
                 R_min = R;
                 if ( pp[i].mass < pp[pj_id].mass ){
                     col_pair.first = i;
@@ -300,10 +300,11 @@ void timeIntegrate_multi(Tpsys & pp,
             //   Collision   //
             ///////////////////
             Collision col;
+            std::vector<FPHard> pfrag;
 
             col.inputPair(pp, merge_list, col_pair);
-            n_frag += col.collisionOutcome();
-            col.setParticle(pp, merge_list, id_next);
+            n_frag += col.collisionOutcome(pfrag);
+            col.setParticle(pp, pfrag, merge_list, id_next);
             edisp += col.calcEnergyDissipation(pp, merge_list);
             edisp_d += col.getHardEnergyDissipation();
             col.setNeighbors(pp);
@@ -319,9 +320,9 @@ void timeIntegrate_multi(Tpsys & pp,
                     pp[col_pair.first].isMerged = false;
                 }
             }
-            for(iterator it = merge_list.begin(); it != merge_list.end() ; ++it) {
-                PRC(it->first);PRC(it->second);PRC(pp[it->first].id);PRL(pp[it->second].id);
-            }
+            //for(iterator it = merge_list.begin(); it != merge_list.end() ; ++it) {
+            //    PRC(it->first);PRC(it->second);PRC(pp[it->first].id);PRL(pp[it->second].id);
+            //}
             
             collision_list.push_back(col);
             n_col ++;

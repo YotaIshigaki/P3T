@@ -573,7 +573,7 @@ int main(int argc, char *argv[])
         PS::F64 de_tmp = sqrt(de*de);
         if( de_tmp > de_max ) de_max = de_tmp;
         if ( PS::Comm::getRank() == 0 ) {
-            std::cerr << std::fixed << std::setprecision(8)
+            std::cout << std::fixed << std::setprecision(8)
                       << "Time: " << time_sys
                       << "  NumberOfParticle: " << n_tot 
                       << "  NumberOfCol: " << n_col_tot

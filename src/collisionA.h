@@ -11,13 +11,18 @@ class Collision0{
 
     PS::F64vec pos_imp;
     PS::F64vec pos_tar;
+    PS::F64vec pos_g;
     PS::F64vec vel_imp;
     PS::F64vec vel_tar;
+    PS::F64vec vel_g;
+    PS::F64 col_angle;
+    
     PS::F64vec pos_imp_new;
     PS::F64vec pos_tar_new;
+    PS::F64vec pos_g_new;
     PS::F64vec vel_imp_new;
     PS::F64vec vel_tar_new;
-    PS::F64 col_angle;
+    PS::F64vec vel_g_new;
 
     PS::F64 mass_imp;
     PS::F64 mass_tar;
@@ -29,8 +34,6 @@ class Collision0{
     PS::S32 n_frag;
     PS::S32 id_frag;
     PS::S32 id_c_frag;
-
-    //PS::S32 rank;
 
     bool HitAndRun;
 
@@ -47,7 +50,9 @@ class Collision0{
     void inputPair(Tpsys & pp,
                    std::multimap<PS::S32,PS::S32> & merge_list,
                    std::pair<PS::S32,PS::S32> col_pair);
-    PS::S32 collisionOutcome(){
+    template <class Tp>
+    PS::S32 collisionOutcome(std::vector<Tp> & pfrag){
+        pfrag.clear();
         mass_frag = 0.;
 
         pos_imp_new = pos_tar_new = (mass_imp*pos_imp + mass_tar*pos_tar)/(mass_imp+mass_tar);
@@ -57,8 +62,9 @@ class Collision0{
         HitAndRun = false;
         return n_frag;
     }
-    template <class Tpsys>
+    template <class Tpsys, class Tp>
     void setParticle(Tpsys & pp,
+                     std::vector<Tp> & pfrag,
                      std::multimap<PS::S32,PS::S32> & merge_list,
                      PS::S32 & id_next);
     
@@ -77,14 +83,16 @@ class Collision0{
     void write2File(std::ofstream & fp) const {
         PS::F64vec ximp = pos_imp - pos_tar;
         PS::F64vec vimp = vel_imp - vel_tar;
+        PS::F64vec dpos_g = pos_g_new - pos_g;
+        PS::F64vec dvel_g = vel_g_new - vel_g;
         fp << std::fixed<<std::setprecision(8)<< this->time << "\t"
            << this->id_imp << "\t" << this->id_tar  << "\t"
            << this->n_frag << "\t" << this->id_frag << "\t"
            << std::scientific<<std::setprecision(15)
            << this->mass_imp  << "\t" << this->mass_tar  << "\t" << this->mass_frag << "\t"
            << sqrt(ximp*ximp) << "\t" << sqrt(vimp*vimp) << "\t"
-           << this->col_angle << "\t" << ((this->HitAndRun) ? 1:0) //<< "\t"
-            //<< this->rank
+           << this->col_angle << "\t" << ((this->HitAndRun) ? 1:0) << "\t"
+           << sqrt((dpos_g*dpos_g)/(pos_g*pos_g)) << "\t" << sqrt((dvel_g*dvel_g)/(vel_g*vel_g)) 
            << std::endl;
     }
 };
@@ -132,34 +140,43 @@ inline void Collision0::inputPair(Tpsys & pp,
         }
     }
 
-    //rank = PS::Comm::getRank();
-    PRC(id_imp);PRL(id_tar);
+    pos_g = (mass_imp*pos_imp + mass_tar*pos_tar)/(mass_imp+mass_tar);
+    vel_g = (mass_imp*vel_imp + mass_tar*vel_tar)/(mass_imp+mass_tar);
+    
+    std::cerr << std::fixed << std::setprecision(8)
+              << "Time: " << time << "\tImpactor ID: " << id_imp << "\tTarget ID: " << id_tar << std::endl
+              << std::scientific << std::setprecision(15)
+              << "Imp_pos_vel:     " << pos_imp.x << "\t" << pos_imp.y << "\t" << pos_imp.z << "\t"
+              << vel_imp.x << "\t" << vel_imp.y << "\t" << vel_imp.z << std::endl
+              << "Tar_pos_vel:     " << pos_tar.x << "\t" << pos_tar.y << "\t" << pos_tar.z << "\t"
+              << vel_tar.x << "\t" << vel_tar.y << "\t" << vel_tar.z << std::endl;
 }
 
-template <class Tpsys>
+template <class Tpsys, class Tp>
 inline void Collision0::setParticle(Tpsys & pp,
+                                    std::vector<Tp> & pfrag,
                                     std::multimap<PS::S32,PS::S32> & merge_list,
                                     PS::S32 & id_next)
 {
     using iterator = std::multimap<PS::S32,PS::S32>::iterator;
     std::pair<iterator, iterator> imp_range = merge_list.equal_range(id_c_imp);
     std::pair<iterator, iterator> tar_range = merge_list.equal_range(id_c_tar);
-    const PS::F64 dens  = FPGrav::dens;
-    const PS::F64 eps2  = FPGrav::eps2;
 
-    PS::F64vec pos_g = (mass_imp*pos_imp + mass_tar*pos_tar)/(mass_imp+mass_tar);
-    PS::F64vec vel_g = (mass_imp*vel_imp + mass_tar*vel_tar)/(mass_imp+mass_tar);
+    PS::F64 mass_rem = mass_imp + mass_tar - mass_frag;
+    PS::F64vec masspos = 0.;
+    PS::F64vec massvel = 0.;
+    PS::F64 mass_tot = 0.;
     
     ///////////////////
     /*   Accretion   */
     ///////////////////
     //Mass & Radius
-    pp[id_c_imp].mass -= n_frag * mass_frag;
+    pp[id_c_imp].mass -= mass_frag;
     if ( HitAndRun ) {
-        pp[id_c_imp].setRPlanet(mass_imp - n_frag*mass_frag);
+        pp[id_c_imp].setRPlanet(mass_imp - mass_frag);
     } else {
         pp[id_c_imp].r_planet = 0.;
-        pp[id_c_tar].setRPlanet(mass_imp + mass_tar - n_frag*mass_frag);
+        pp[id_c_tar].setRPlanet(mass_rem);
     }
 
     // ID
@@ -175,64 +192,42 @@ inline void Collision0::setParticle(Tpsys & pp,
     }
     
     //Add Fragments
-    PS::F64vec ximp = pos_imp - pos_tar;
-    PS::F64vec vimp = vel_imp - vel_tar;
-    PS::F64 r_frag = 2. * f * pow(0.75*(mass_imp+mass_tar-n_frag*mass_frag)/(M_PI*dens), 1./3.);
-    //if ( HitAndRun ) r_frag = 2. * f * ( pow(0.75*mass_imp/(M_PI*dens), 1./3.) + pow(0.75*mass_tar/(M_PI*dens), 1./3.) );
-    PS::F64 r2_frag = r_frag*r_frag + eps2;
-    PS::F64 r_frag_inv = sqrt( 1. / r2_frag );
-    PS::F64 v_frag = 1.05 * sqrt( 2. * (mass_imp+mass_tar-n_frag*mass_frag) * r_frag_inv );
-    //PS::F64vec e0 = vimp;
-    //PS::F64vec e1 = ximp - ((ximp*vimp)/(vimp*vimp))*vimp;
-    PS::F64vec e0 = ximp;
-    PS::F64vec e1 = vimp - ((vimp*ximp)/(ximp*ximp))*ximp;
-    e0 = e0 / sqrt(e0*e0);
-    e1 = e1 / sqrt(e1*e1);
-    
-    PS::F64 theta0 = 2. * M_PI * drand48();
-    PS::F64vec mv_frag = 0.;
     id_c_frag = n_frag ? pp.size() : 0;
     id_frag   = n_frag ? ( - (100*pp[id_c_imp].id_cluster+id_next+1) ) : 0;
     for ( PS::S32 i=0; i<n_frag; i++ ){
-        FPGrav new_frag;
-        new_frag.mass = mass_frag;
-        new_frag.setRPlanet();
+        pfrag[i].setRPlanet();
 
-        PS::F64 theta = theta0 + 2.*M_PI*i/n_frag;
-        //if ( !HitAndRun ) {
-        new_frag.pos = pos_g + r_frag * ( cos(theta)*e0 + sin(theta)*e1 );
-        new_frag.vel = vel_g + v_frag * ( cos(theta)*e0 + sin(theta)*e1 );
-        //} else {
-        //theta = (fmod(theta, 2.*M_PI) - M_PI)/2.;
-        //new_frag.pos = pos_imp_new + r_frag * ( cos(theta)*e0 + sin(theta)*e1 );
-        //new_frag.vel = vel_imp_new + v_frag * ( cos(theta)*e0 + sin(theta)*e1 );
-        //}
-        PRC(new_frag.pos);PRC(new_frag.vel);PRC(r_frag);PRL(v_frag);
-        mv_frag += new_frag.mass * new_frag.vel;
+        std::cerr << std::scientific << std::setprecision(15)
+                  << "frag_mass: " << pfrag[i].mass << " frag_pos_vel: "
+                  << "\t" << pfrag[i].pos.x << "\t" << pfrag[i].pos.y << "\t" << pfrag[i].pos.z
+                  << "\t" << pfrag[i].vel.x << "\t" << pfrag[i].vel.y << "\t" << pfrag[i].vel.z << std::endl;
+
+        masspos += pfrag[i].mass * pfrag[i].pos;
+        massvel += pfrag[i].mass * pfrag[i].vel;
+        mass_tot += pfrag[i].mass;
 
 #ifdef USE_INDIVIDUAL_RADII
-        new_frag.r_out    = pp[id_c_imp].r_out;
-        new_frag.r_search = pp[id_c_imp].r_search;
+        pfrag[i].r_out    = pp[id_c_imp].r_out;
+        pfrag[i].r_search = pp[id_c_imp].r_search;
 #endif
-        new_frag.time  = time;
-        new_frag.dt    = pp[id_c_imp].dt;
-        new_frag.phi   = pp[id_c_imp].phi;
-        new_frag.phi_d = pp[id_c_imp].phi_d;
-        new_frag.phi_s = pp[id_c_imp].phi_s;
+        pfrag[i].time  = time;
+        pfrag[i].dt    = pp[id_c_imp].dt;
+        pfrag[i].phi   = pp[id_c_imp].phi;
+        pfrag[i].phi_d = pp[id_c_imp].phi_d;
+        pfrag[i].phi_s = pp[id_c_imp].phi_s;
 
-        new_frag.id         = id_frag - i;
-        new_frag.id_cluster = pp[id_c_imp].id_cluster;
-        new_frag.inDomain = true;
-        new_frag.isDead   = false;
-        new_frag.isMerged = false;
+        pfrag[i].id         = id_frag - i;
+        pfrag[i].id_cluster = pp[id_c_imp].id_cluster;
+        pfrag[i].inDomain = true;
+        pfrag[i].isDead   = false;
+        pfrag[i].isMerged = false;
         id_next ++;
         
-        pp.push_back(new_frag);
+        pp.push_back(pfrag[i]);
     }
     if ( n_frag ) assert ( pp.size() == id_c_frag + n_frag );
 
     //Pos & Vel
-    //if ( HitAndRun ) vel_imp_new -= mv_frag / (mass_imp-n_frag*mass_frag);
     pp[id_c_imp].pos = pos_imp_new;
     pp[id_c_imp].vel = vel_imp_new;
     for (iterator it = imp_range.first; it != imp_range.second; ++it){
@@ -251,6 +246,19 @@ inline void Collision0::setParticle(Tpsys & pp,
             assert( pos_imp_new == pos_tar_new );
             assert( vel_imp_new == vel_tar_new );
     }
+
+    masspos += (mass_imp-mass_frag)*pos_imp_new + mass_tar*pos_tar_new;
+    massvel += (mass_imp-mass_frag)*vel_imp_new + mass_tar*vel_tar_new;
+    mass_tot += mass_imp-mass_frag + mass_tar;
+    pos_g_new = masspos / mass_tot;
+    vel_g_new = massvel / mass_tot;
+
+    std::cerr << std::scientific << std::setprecision(15)
+              << "Imp_pos_vel_new: " << pos_imp_new.x << "\t" << pos_imp_new.y << "\t" << pos_imp_new.z << "\t"
+              << vel_imp_new.x << "\t" << vel_imp_new.y << "\t" << vel_imp_new.z << std::endl
+              << "Tar_pos_vel_new: " << pos_tar_new.x << "\t" << pos_tar_new.y << "\t" << pos_tar_new.z << "\t"
+              << vel_tar_new.x << "\t" << vel_tar_new.y << "\t" << vel_tar_new.z << std::endl;
+
 }
 
 template <class Tpsys>
@@ -260,7 +268,7 @@ inline PS::F64 Collision0::calcEnergyDissipation(Tpsys & pp,
     using iterator = std::multimap<PS::S32,PS::S32>::iterator;
     std::pair<iterator, iterator> imp_range = merge_list.equal_range(id_c_imp);
     std::pair<iterator, iterator> tar_range = merge_list.equal_range(id_c_tar);
-    PS::F64 mass_i = pp[id_c_imp].mass + n_frag*mass_frag;
+    PS::F64 mass_i = pp[id_c_imp].mass + mass_frag;
     
     const PS::F64 eps2  = EPGrav::eps2;
     const PS::F64 m_sun = FPGrav::m_sun;
@@ -270,13 +278,14 @@ inline PS::F64 Collision0::calcEnergyDissipation(Tpsys & pp,
     ///////////////////////////
     //Kinetic energy
     PS::F64 e_kin = 0.;
-#if 0
-    PS::F64vec vel_rel = vel_imp - vel_tar;
-    PS::F64vec vel_g = (mass_imp*vel_imp + mass_tar*vel_tar)/(mass_imp+mass_tar);   
+#if 1
+    PS::F64vec vel_rel = vel_imp - vel_tar;   
     e_kin -= 0.5 * mass_imp*mass_tar/(mass_imp+mass_tar) * vel_rel*vel_rel;
 
-    vel_rel = vel_imp_new - vel_tar_new;
-    e_kin += 0.5 * (mass_imp-n_frag*mass_frag)*mass_tar/(mass_imp+mass_tar-n_frag*mass_frag) * vel_rel*vel_rel;
+    vel_rel = vel_imp_new - vel_g;
+    e_kin += 0.5 * (mass_imp-mass_frag)* vel_rel*vel_rel;
+    vel_rel = vel_tar_new - vel_g;
+    e_kin += 0.5 * mass_tar* vel_rel*vel_rel;
     for ( PS::S32 i=0; i<n_frag; i++ ){
         PS::S32 id_f = id_c_frag + i;
         vel_rel = pp[id_f].vel - vel_g;
@@ -285,7 +294,7 @@ inline PS::F64 Collision0::calcEnergyDissipation(Tpsys & pp,
 #else
     e_kin -= mass_imp * vel_imp*vel_imp + mass_tar * vel_tar*vel_tar;
 
-    e_kin += (mass_imp-n_frag*mass_frag) * vel_imp_new*vel_imp_new + mass_tar * vel_tar_new*vel_tar_new;
+    e_kin += (mass_imp-mass_frag) * vel_imp_new*vel_imp_new + mass_tar * vel_tar_new*vel_tar_new;
     for ( PS::S32 i=0; i<n_frag; i++ ){
         PS::S32 id_f = id_c_frag + i;
         e_kin += pp[id_f].mass *pp[id_f].vel*pp[id_f].vel;
@@ -542,7 +551,7 @@ inline PS::F64 Collision0::calcEnergyDissipation(Tpsys & pp,
     dr = pp[id_c_imp].pos;
     dr2 = dr*dr + eps2;
     rinv_new = sqrt(1./dr2);
-    e_sun -= (mass_imp-n_frag*mass_frag) * rinv_new;
+    e_sun -= (mass_imp-mass_frag) * rinv_new;
 
     for ( PS::S32 i=0; i<n_frag; i++ ){
         PS::S32 id_f = id_c_frag + i;
@@ -555,7 +564,10 @@ inline PS::F64 Collision0::calcEnergyDissipation(Tpsys & pp,
     
     edisp = e_kin + e_int + e_sun;
     edisp_d = e_kin + e_int_d + e_sun;
-    PRC(e_kin); PRC(e_int);PRC(e_int_d); PRC(e_sun); PRL(edisp);
+    //PRC(e_kin); PRC(e_int);PRC(e_int_d); PRC(e_sun); PRL(edisp);
+    std::cerr << std::scientific << std::setprecision(15)
+              << "DEkin: " << e_kin << "\tDEint: " << e_int << "\tDEint_hard: " << e_int_d
+              << "\tDEsun: " << e_sun << "\tDEtot: " << edisp << std::endl;
 
     return edisp;
 }
