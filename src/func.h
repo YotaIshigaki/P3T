@@ -43,8 +43,7 @@ void outputStep(Tpsys & pp,
                 const char * dir_name,
                 const PS::S32 isnap,
                 std::ofstream & fout_eng,
-                PS::F64 wtime_soft_step,
-                PS::F64 wtime_hard_step,
+                Wtime wtime,
                 PS::S32 n_largestcluster,
                 bool bSnap=true)
 {
@@ -66,10 +65,15 @@ void outputStep(Tpsys & pp,
                   << time_sys << "\t" << n_tot << "\t"
                   << std::scientific<<std::setprecision(15)
                   << e_now.etot << "\t" << de << "\t"
-                  << wtime_soft_step << "\t" << wtime_hard_step << "\t"
                   << n_largestcluster
 #ifdef OUTPUT_DETAIL
                   << "\t" << m_max << "\t" << m_mean 
+#endif
+#ifdef CALC_WTIME
+                  << "\t" << wtime.soft_step << "\t" << wtime.hard_step << "\t"
+                  << wtime.calc_soft_force_step << "\t" << wtime.calc_hard_force_step << "\t"
+                  << wtime.create_cluster_step << "\t" << wtime.communication_step << "\t"
+                  << wtime.output_step 
 #endif
                   <<std::endl;
     }

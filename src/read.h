@@ -451,37 +451,6 @@ void showParameter(char * init_file,
     }
 }
 
-void showTime(char * dir_name,
-              time_t wtime_start_program,
-              PS::F64 wtime_init,
-              PS::F64 wtime_now,
-              PS::F64 wtime_soft,
-              PS::F64 wtime_hard)
-{
-    if( PS::Comm::getRank() == 0 ){
-        char wtime_s[64], wtime_n[64];
-        time_t wtime_now_program = time(NULL);
-        strftime(wtime_s, sizeof(wtime_s), "%Y/%m/%d %a %H:%M:%S", localtime(&wtime_start_program));
-        strftime(wtime_n, sizeof(wtime_n), "%Y/%m/%d %a %H:%M:%S", localtime(&wtime_now_program));      
-        
-        char sout_param[256];
-        std::ofstream fout_param;
-        sprintf(sout_param,"%s/param.dat", dir_name);
-        fout_param.open(sout_param, std::ios::app);
-        fout_param << std::endl
-                   << "Start Wall Time: " << wtime_s << std::endl
-                   << "End Wall Time:   " << wtime_n << std::endl
-                   << std::scientific << std::setprecision(15)
-                   << "Wall Time: " << wtime_now - wtime_init
-                   << "\tSoft: " << wtime_soft
-                   << "\tHard: " << wtime_hard << std::endl;
-        
-        std::cout << "Wall Time: " << wtime_now - wtime_init
-                  << "\tSoft: " << wtime_soft
-                  << "\tHard: " << wtime_hard << std::endl;
-    }
-}
-
 PS::S32 makeOutputDirectory(char * dir_name)
 {
     struct stat st;

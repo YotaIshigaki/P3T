@@ -29,6 +29,7 @@
 #include "hermite.h"
 #include "hard.h"
 #include "read.h"
+#include "time.h"
 #include "func.h"
 
 
@@ -71,15 +72,13 @@ int main(int argc, char *argv[])
     // Read Parameter File
     opterr = 0;
     PS::S32 opt;
-    char param_file_opt[256];
     char init_file_opt[256];
     PS::S32 seed_opt;
-    bool opt_p = false, opt_r = false, opt_i = false, opt_s = false;
-    while ((opt = getopt(argc, argv, "prise:")) != -1) {
+    bool opt_r = false, opt_i = false, opt_s = false;
+    while ((opt = getopt(argc, argv, "p:ri:s:e:")) != -1) {
         switch (opt) {
         case 'p':
-            sprintf(param_file_opt,"%s",optarg);
-            opt_p = true;
+            sprintf(param_file,"%s",optarg);
             break;
         case 'r':
             opt_r = true;
@@ -109,7 +108,6 @@ int main(int argc, char *argv[])
         PS::Abort();
         return 0;
     }
-    if (opt_p) sprintf(param_file,"%s",param_file_opt);
     if (opt_r) isRestart = true;
     if (opt_i) sprintf(init_file,"%s",init_file_opt);
     if (opt_s) seed = seed_opt;
@@ -271,23 +269,14 @@ int main(int argc, char *argv[])
     if ( !existsHeader ) e_init = e_now;
     PS::F64 de =  e_now.calcEnergyError(e_init);
     
-    PS::F64 wtime_init = 0.0;
-    PS::F64 wtime_now = 0.0;
-    PS::F64 wtime_soft = 0.0;
-    PS::F64 wtime_hard = 0.0;
-    PS::F64 wtime_soft_step = 0.0;
-    PS::F64 wtime_hard_step = 0.0;
-    PS::F64 wtime_start_soft = 0.0;
-    PS::F64 wtime_end_soft = 0.0;
-    PS::F64 wtime_start_hard = 0.0;
-    PS::F64 wtime_end_hard = 0.0;  
+    Wtime wtime;
 
     PS::Comm::barrier();
-    wtime_init = wtime_now = PS::GetWtime();
+    wtime.init = wtime.now = PS::GetWtime();
 
     outputStep(system_grav, time_sys, e_init, e_now, de,
                n_col_tot, n_frag_tot, dir_name, isnap, fout_eng, 
-               wtime_soft_step, wtime_hard_step, n_largestcluster,
+               wtime, n_largestcluster,
                (time_sys==0.) );
     istep ++;
     isnap ++;
@@ -307,7 +296,10 @@ int main(int argc, char *argv[])
         n_loc = system_grav.getNumberOfParticleLocal();
 
         PS::Comm::barrier();
-        wtime_start_soft = PS::GetWtime();
+        wtime.start_soft = PS::GetWtime();
+#ifdef CALC_WTIME
+        wtime.lap(wtime.start_soft);
+#endif
 
         ////////////////////
         ///   Soft Part
@@ -328,8 +320,11 @@ int main(int argc, char *argv[])
         
 
         PS::Comm::barrier();
-        wtime_end_soft = wtime_start_hard = PS::GetWtime();
-        wtime_soft += wtime_soft_step = wtime_end_soft - wtime_start_soft;
+        wtime.end_soft = wtime.start_hard = PS::GetWtime();
+        wtime.soft += wtime.soft_step = wtime.end_soft - wtime.start_soft;
+#ifdef CALC_WTIME
+        wtime.calc_soft_force += wtime.lap(wtime.end_soft);
+#endif
         
         
         /////////////////////
@@ -350,6 +345,10 @@ int main(int argc, char *argv[])
         countSendParticle(system_grav, ex_tot, ex_loc, ex_nei_loc); 
         //std::cerr << "Rank:" << PS::Comm::getRank() << " RecvRank:" << recv_rank
         //          << " ex_loc = " << ex_loc << std::endl;
+#ifdef CALC_WTIME
+        PS::Comm::barrier();
+        wtime.create_cluster += wtime.create_cluster_step = wtime.lap(PS::GetWtime());
+#endif
 
         FPGrav * ex_ptcl_ = nullptr;
         PS::S32 * ex_nei_ = nullptr;
@@ -408,6 +407,10 @@ int main(int argc, char *argv[])
             }
         }
 #endif
+#ifdef CALC_WTIME
+        PS::Comm::barrier();
+        wtime.communication_step = wtime.lap(PS::GetWtime());
+#endif
 
         ////////////////////////
         /*   Time Integrate   */
@@ -434,6 +437,10 @@ int main(int argc, char *argv[])
 #endif
         n_largestcluster = system_hard.getNumberOfParticleInLargestClusterGlobal();
 
+#ifdef CALC_WTIME
+        PS::Comm::barrier();
+        wtime.calc_hard_force += wtime.calc_hard_force_step = wtime.lap(PS::GetWtime());
+#endif
 #ifdef PARTICLE_SIMULATOR_MPI_PARALLEL
         if( ex_tot != 0 ){
             //////////////////////
@@ -460,8 +467,12 @@ int main(int argc, char *argv[])
           
    
         PS::Comm::barrier();
-        wtime_end_hard = wtime_start_soft = PS::GetWtime();
-        wtime_hard += wtime_hard_step = wtime_end_hard - wtime_start_hard;
+        wtime.end_hard = wtime.start_soft = PS::GetWtime();
+        wtime.hard += wtime.hard_step = wtime.end_hard - wtime.start_hard;
+#ifdef CALC_WTIME
+        wtime.communication_step += wtime.lap(wtime.end_hard);
+        wtime.communication += wtime.communication_step;
+#endif
         
 
         ////////////////////
@@ -559,9 +570,12 @@ int main(int argc, char *argv[])
         ////////////////////
 
         PS::Comm::barrier();
-        wtime_now = wtime_end_soft = PS::GetWtime();
-        wtime_soft += wtime_end_soft - wtime_start_soft;
-        wtime_soft_step +=  wtime_end_soft - wtime_start_soft;
+        wtime.now = wtime.end_soft = PS::GetWtime();
+        wtime.soft += wtime.end_soft - wtime.start_soft;
+        wtime.soft_step +=  wtime.end_soft - wtime.start_soft;
+#ifdef CALC_WTIME
+        wtime.calc_soft_force += wtime.calc_soft_force_step = wtime.lap(wtime.now);
+#endif
         
         ////////////////
         /*   Output   */
@@ -595,11 +609,15 @@ int main(int argc, char *argv[])
         if( time_sys  == dt_snap*isnap ){
             outputStep(system_grav, time_sys, e_init, e_now, de,
                        n_col_tot, n_frag_tot, dir_name, isnap, fout_eng,
-                       wtime_soft_step, wtime_hard_step, n_largestcluster);
+                       wtime, n_largestcluster);
             isnap ++;
 
             if ( wtime_max > 0. && wtime_max < difftime(time(NULL), wtime_start_program) ) break; 
         }
+#ifdef CALC_WTIME
+        PS::Comm::barrier();
+        wtime.output += wtime.output_step = wtime.lap(PS::GetWtime());
+#endif
     }
        
     ///   Loop End
@@ -612,8 +630,8 @@ int main(int argc, char *argv[])
     
     PS::Comm::barrier();
 
-    wtime_now = PS::GetWtime();
-    showTime(dir_name, wtime_start_program, wtime_init, wtime_now, wtime_soft, wtime_hard);
+    wtime.now = PS::GetWtime();
+    wtime.showTime(dir_name, wtime_start_program);
     
     PS::Finalize();
     return 0;
