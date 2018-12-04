@@ -43,6 +43,9 @@ public:
     static PS::F64 a_out;
     static PS::F64 a_ice;
 
+    static PS::F64 ecc_hill;
+    static PS::F64 inc_hill;
+
     static PS::F64 calcDustMass(const PS::F64 a0,
                                 const PS::F64 a1,
                                 const bool inIce) {
@@ -129,8 +132,8 @@ public:
                         ax = getSemimajorAxis(a_ice, a_out);
                     }
                 }
-                PS::F64 ecc = getGaussian(2.*h);
-                PS::F64 inc = getGaussian(h);
+                PS::F64 ecc = getGaussian(ecc_hill*h);
+                PS::F64 inc = getGaussian(inc_hill*h);
                 
                 PS::F64 l   = 2 * M_PI * drand48();
                 PS::F64 u   = solveKeplerEq(l, ecc);
@@ -159,13 +162,13 @@ public:
 PS::S32 SolidDisk::n_init = 0;
 PS::F64 SolidDisk::m_init = 0.;
 PS::F64 SolidDisk::p      = 1.5;
-//PS::F64 SolidDisk::f_in  = 7.991079e-7;
-//PS::F64 SolidDisk::f_out = 3.376512e-6;
 PS::F64 SolidDisk::f_dust  = 0.71;
 PS::F64 SolidDisk::eta_ice = 30./7.1;
 PS::F64 SolidDisk::a_in  = 0.98;
 PS::F64 SolidDisk::a_out = 1.02;
-PS::F64 SolidDisk::a_ice  = 2.0;
+PS::F64 SolidDisk::a_ice = 2.0;
+PS::F64 SolidDisk::ecc_hill  = 2.0;
+PS::F64 SolidDisk::inc_hill  = 1.0;
 
 
 class GasDisk{

@@ -65,6 +65,7 @@ PS::S32 readParameter(const char * param_file,
                       PS::F64 & theta,
                       PS::S32 & n_leaf_limit,
                       PS::S32 & n_group_limit,
+                      PS::S32 & n_smp_ave,
                       PS::F64 & t_end,
                       PS::F64 & dt_snap,
                       PS::F64 & r_max,
@@ -127,12 +128,6 @@ PS::S32 readParameter(const char * param_file,
         } else if ( name == "p" ){
             SolidDisk::p = getvalue(value, 1., 1.);
 
-            //} else if ( name == "f_in" ){
-            //SolidDisk::f_in = getvalue(value, M_MKS/(L_MKS*L_MKS), M_CGS/(L_CGS*L_CGS));
-
-            //} else if ( name == "f_out" ){
-            //SolidDisk::f_out = getvalue(value, M_MKS/(L_MKS*L_MKS), M_CGS/(L_CGS*L_CGS));
-
         } else if ( name == "f_dust" ){
             SolidDisk::f_dust = getvalue(value, 1., 1.);
 
@@ -147,6 +142,12 @@ PS::S32 readParameter(const char * param_file,
 
         } else if ( name == "a_ice" ){
             SolidDisk::a_ice = getvalue(value, L_MKS, L_CGS);
+
+        } else if ( name == "ecc_hill" ){
+            SolidDisk::ecc_hill = getvalue(value, 1., 1.);
+            
+        } else if ( name == "inc_hill" ){
+            SolidDisk::inc_hill = getvalue(value, 1., 1.);
 
         } else if ( name == "alpha_gas" ){
             GasDisk::alpha_gas = getvalue(value, 1., 1.);
@@ -183,6 +184,9 @@ PS::S32 readParameter(const char * param_file,
             
         } else if ( name == "n_group_limit" ){
             n_group_limit = std::atoi(value.c_str());
+
+        } else if ( name == "n_smp_ave" ){
+            n_smp_ave = std::atoi(value.c_str());
        
         } else if ( name == "t_end" ){
             t_end = getvalue(value, T, T);
@@ -250,6 +254,7 @@ PS::S32 readParameter(const char * param_file,
         Collision::readParameter(name, value);
     }
     ifs.close();
+    EPGrav::setGamma();
 
     if ( !isPowerOf2(FPGrav::dt_tree) ){
         std::cerr << "dt_tree is not power of 2. (dt_tree = " << FPGrav::dt_tree << ")" << std::endl;
@@ -283,6 +288,7 @@ void showParameter(char * init_file,
                    PS::F64 theta,
                    PS::S32 n_leaf_limit,
                    PS::S32 n_group_limit,
+                   PS::S32 n_smp_ave,
                    PS::F64 t_end,
                    PS::F64 dt_snap,
                    PS::F64 r_max,
@@ -302,22 +308,23 @@ void showParameter(char * init_file,
             //std::cout << std::setprecision(15);
                   << "Initial File:\t" << init_file << std::endl
                   << "Output Directory:\t" << dir_name << std::endl
-                  << "seed          = " << seed << std::endl
-                  << std::scientific << std::setprecision(15)
-                  << "n_init        = " << SolidDisk::n_init << std::endl
-                  << "m_init        = " << SolidDisk::m_init << "\t(" << SolidDisk::m_init*M << " kg)" << std::endl;
+                  << "seed          = " << seed << std::endl;
         if ( makeInit ){
-            std::cout << "p             = " << SolidDisk::p << std::endl
-                //<< "f_in          = " << SolidDisk::f_in << "\t(" << SolidDisk::f_in*M/(L*L) << " kg/m^2)" << std::endl
-                //<< "f_out         = " << SolidDisk::f_out << "\t(" << SolidDisk::f_out*M/(L*L) << " kg/m^2)" << std::endl
+            std::cout << std::scientific << std::setprecision(15)
+                      << "n_init        = " << SolidDisk::n_init << std::endl
+                      << "m_init        = " << SolidDisk::m_init << "\t(" << SolidDisk::m_init*M << " kg)" << std::endl
+                      << "p             = " << SolidDisk::p << std::endl
                       << "f_dust        = " << SolidDisk::f_dust << std::endl
                       << "eta_ice       = " << SolidDisk::eta_ice << std::endl
                       << "a_in          = " << SolidDisk::a_in << std::endl
                       << "a_out         = " << SolidDisk::a_out << std::endl
-                      << "a_ice         = " << SolidDisk::a_ice << std::endl;
+                      << "a_ice         = " << SolidDisk::a_ice << std::endl
+                      << "ecc_hill      = " << SolidDisk::ecc_hill << std::endl
+                      << "inc_hill      = " << SolidDisk::inc_hill << std::endl;
         }
 #ifdef GAS_DRAG
-        std::cout << "alpha_gas     = " << GasDisk::alpha_gas << std::endl
+        std::cout << std::scientific << std::setprecision(15)
+                  << "alpha_gas     = " << GasDisk::alpha_gas << std::endl
                   << "beta_gas      = " << GasDisk::beta_gas << std::endl
                   << "f_gas         = " << GasDisk::f_gas << std::endl
                   << "tau_gas       = " << GasDisk::tau_gas << "\t(" << GasDisk::tau_gas/(2.*M_PI) << " year)" << std::endl
@@ -330,6 +337,7 @@ void showParameter(char * init_file,
                   << "theta         = " << theta << std::endl
                   << "n_leaf_limit  = " << n_leaf_limit << std::endl
                   << "n_group_limit = " << n_group_limit << std::endl
+                  << "n_smp_ave     = " << n_smp_ave << std::endl
                   << std::scientific << std::setprecision(15)
                   << "t_begin       = " << time_sys << "\t(" << time_sys/(2.*M_PI) << " year)" << std::endl
                   << "t_end         = " << t_end << "\t(" << t_end/(2.*M_PI) << " year)" << std::endl
@@ -376,6 +384,9 @@ void showParameter(char * init_file,
 #else
         fout_param << "Use Monopole For Tree" << std::endl;
 #endif
+#ifdef __AVX512F__
+        fout_param << "Use AVX512" << std::endl;
+#endif  
 #ifdef USE_INDIVIDUAL_RADII
         fout_param << "Use Individual CutOff Radii & Search Radii" << std::endl;
 #else
@@ -392,22 +403,23 @@ void showParameter(char * init_file,
 
         fout_param << "Initial File:\t" << init_file << std::endl
                    << "Output Directory:\t" << dir_name << std::endl
-                   << "seed          = " << seed << std::endl
-                   << std::scientific << std::setprecision(15)
-                   << "n_init        = " << SolidDisk::n_init << std::endl
-                   << "m_init        = " << SolidDisk::m_init << std::endl;
+                   << "seed          = " << seed << std::endl;
         if ( makeInit ){
-            fout_param << "p             = " << SolidDisk::p << std::endl
-                //<< "f_in          = " << SolidDisk::f_in << "\t(" << SolidDisk::f_in*M/(L*L) << " kg/m^2)" << std::endl
-                //<< "f_out         = " << SolidDisk::f_out << "\t(" << SolidDisk::f_out*M/(L*L) << " kg/m^2)" << std::endl
+            fout_param << std::scientific << std::setprecision(15)
+                       << "n_init        = " << SolidDisk::n_init << std::endl
+                       << "m_init        = " << SolidDisk::m_init << "\t(" << SolidDisk::m_init*M << " kg)" << std::endl
+                       << "p             = " << SolidDisk::p << std::endl
                        << "f_dust        = " << SolidDisk::f_dust << std::endl
                        << "eta_ice       = " << SolidDisk::eta_ice << std::endl
                        << "a_in          = " << SolidDisk::a_in << std::endl
                        << "a_out         = " << SolidDisk::a_out << std::endl
-                       << "a_ice         = " << SolidDisk::a_ice << std::endl;
+                       << "a_ice         = " << SolidDisk::a_ice << std::endl
+                       << "ecc_hill      = " << SolidDisk::ecc_hill << std::endl
+                       << "inc_hill      = " << SolidDisk::inc_hill << std::endl;
         }
         #ifdef GAS_DRAG
-        fout_param << "alpha_gas     = " << GasDisk::alpha_gas << std::endl
+        fout_param << std::scientific << std::setprecision(15)
+                   << "alpha_gas     = " << GasDisk::alpha_gas << std::endl
                    << "beta_gas      = " << GasDisk::beta_gas << std::endl
                    << "f_gas         = " << GasDisk::f_gas << std::endl
                    << "tau_gas       = " << GasDisk::tau_gas << "\t(" << GasDisk::tau_gas/(2.*M_PI) << " year)" << std::endl
@@ -420,6 +432,7 @@ void showParameter(char * init_file,
                    << "theta         = " << theta << std::endl
                    << "n_leaf_limit  = " << n_leaf_limit << std::endl
                    << "n_group_limit = " << n_group_limit << std::endl
+                   << "n_smp_ave     = " << n_smp_ave << std::endl
                    << std::scientific << std::setprecision(15)
                    << "t_begin       = " << time_sys << "\t(" << time_sys/(2.*M_PI) << " year)" << std::endl
                    << "t_end         = " << t_end << "\t(" << t_end/(2.*M_PI) << " year)" << std::endl

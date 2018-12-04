@@ -12,12 +12,14 @@
 #include <mpi.h>
 #endif
 
+
 #include <particle_simulator.hpp>
 
 #define PRC(x) std::cerr << #x << " = " << x << ", "
 #define PRL(x) std::cerr << #x << " = " << x << "\n"
 
-#include "vector_x86.hpp"
+//#include "vector_x86.hpp"
+#include "avx.h"
 #include "kepler.h"
 #include "energy.h"
 #include "particle.h"
@@ -35,7 +37,7 @@
 
 int main(int argc, char *argv[])
 {
-    PS::Initialize(argc, argv);
+   PS::Initialize(argc, argv);
     time_t wtime_start_program = time(NULL);
     
     ////////////////////////
@@ -58,7 +60,8 @@ int main(int argc, char *argv[])
     
     PS::F64 theta         = 0.5;
     PS::S32 n_leaf_limit  = 8;
-    PS::S32 n_group_limit = 256;    
+    PS::S32 n_group_limit = 256;
+    PS::S32 n_smp_ave     = 100;
     
     PS::F64 t_end   = pow2(-2);
     PS::F64 dt_snap = pow2(-5);
@@ -73,9 +76,12 @@ int main(int argc, char *argv[])
     opterr = 0;
     PS::S32 opt;
     char init_file_opt[256];
+    char output_dir_opt[256];
     PS::S32 seed_opt;
-    bool opt_r = false, opt_i = false, opt_s = false;
-    while ((opt = getopt(argc, argv, "p:ri:s:e:")) != -1) {
+    PS::F64 dt_opt;
+    PS::F64 Rcut_opt;
+    bool opt_r=false, opt_i=false, opt_s=false, opt_o=false, opt_D=false, opt_R=false;
+    while ((opt = getopt(argc, argv, "p:ri:s:e:o:D:R:")) != -1) {
         switch (opt) {
         case 'p':
             sprintf(param_file,"%s",optarg);
@@ -94,16 +100,28 @@ int main(int argc, char *argv[])
         case 'e':
             wtime_max = std::atof(optarg)*60.*60.;
             break;
+        case 'o':
+            sprintf(output_dir_opt,"%s",optarg);
+            opt_o = true;
+            break;
+        case 'D':
+            dt_opt = pow2(-std::atoi(optarg));
+            opt_D = true;
+            break;
+        case 'R':
+            Rcut_opt = std::atof(optarg);
+            opt_R = true;
+            break;
         default:
             std::cout << "Usage: "
                       <<  argv[0]
-                      << " [-p argment] [-r] [-i argment] [-s argment] [-e argment] arg1 ..." << std::endl;
+                      << " [-p argment] [-r] [-i argment] [-s argment] [-e argment] [-o argment] [-D argment] [-R argment] arg1 ..." << std::endl;
             break;
         }
     }
     if ( readParameter(param_file, init_file, existsHeader, output_dir, isRestart,  makeInit,
                        coef_ema, nx, ny,
-                       theta, n_leaf_limit, n_group_limit,
+                       theta, n_leaf_limit, n_group_limit, n_smp_ave,
                        t_end, dt_snap, r_max, r_min, seed) ){
         PS::Abort();
         return 0;
@@ -111,6 +129,9 @@ int main(int argc, char *argv[])
     if (opt_r) isRestart = true;
     if (opt_i) sprintf(init_file,"%s",init_file_opt);
     if (opt_s) seed = seed_opt;
+    if (opt_o) sprintf(output_dir,"%s",output_dir_opt);
+    if (opt_D) FPGrav::dt_tree = dt_opt;
+    if (opt_R) EPGrav::R_cut = EPGrav::R_search0 = Rcut_opt;
     
     char dir_name[256];
     sprintf(dir_name,"./%s",output_dir);
@@ -127,7 +148,7 @@ int main(int argc, char *argv[])
         makeInit = false;
     }
 
-    srand48(seed);
+    srand48( seed + PS::Comm::getRank() );
 
     PS::F64 time_sys = 0.;
     PS::S32 n_tot  = 0;
@@ -143,6 +164,7 @@ int main(int argc, char *argv[])
     // Soft System
     PS::ParticleSystem<FPGrav> system_grav;
     system_grav.initialize();
+    system_grav.setAverageTargetNumberOfSampleParticlePerProcess(n_smp_ave);
     PS::S32 n_loc = 0;
     Energy e_init, e_now;
 #ifdef OUTPUT_DETAIL
@@ -152,7 +174,7 @@ int main(int argc, char *argv[])
     std::vector<std::vector<PS::S32> > n_list;
     n_list.clear();
 
-    if ( makeInit && !isRestart){
+    if ( makeInit && !isRestart ){
         //Make Initial condition
         SolidDisk::createInitialCondition(system_grav);
         istep = 0;
@@ -201,14 +223,16 @@ int main(int argc, char *argv[])
     PS::S32 * ex_rank = new PS::S32[PS::Comm::getNumberOfProc()];
     PS::S32 * ex_rank_tmp = new PS::S32[PS::Comm::getNumberOfProc()];
     PS::S32 n_largestcluster = 0;
+    PS::S32 n_cluster = 0;
+    PS::S32 n_isoparticle = 0;
 
     ////////////////////
     /*   Set Domain   */
     ////////////////////
     PS::DomainInfo dinfo;
     dinfo.initialize(coef_ema);
-    dinfo.setNumberOfDomainMultiDimension(nx,ny);
-    dinfo.collectSampleParticle(system_grav);
+    dinfo.setNumberOfDomainMultiDimension(nx,ny,1);
+    dinfo.collectSampleParticle(system_grav, true);
     dinfo.decomposeDomain();
     system_grav.exchangeParticle(dinfo);
     n_loc = system_grav.getNumberOfParticleLocal();
@@ -218,20 +242,60 @@ int main(int argc, char *argv[])
     /////////////////////
     /*   Create Tree   */
     /////////////////////
+#ifdef USE_INDIVIDUAL_RADII
+#ifdef USE_QUAD
+    PS::TreeForForceLong<ForceGrav, EPGrav, EPGrav>::QuadrupoleWithSymmetrySearch tree_grav;
+#else
+    PS::TreeForForceLong<ForceGrav, EPGrav, EPGrav>::MonopoleWithSymmetrySearch tree_grav;
+#endif
+#else
 #ifdef USE_QUAD
     PS::TreeForForceLong<ForceGrav, EPGrav, EPGrav>::QuadrupoleWithScatterSearch tree_grav;
 #else
     PS::TreeForForceLong<ForceGrav, EPGrav, EPGrav>::MonopoleWithScatterSearch tree_grav;
 #endif
+#endif
     tree_grav.initialize(n_tot, theta, n_leaf_limit, n_group_limit);
+
+#if 1
     tree_grav.calcForceAllAndWriteBack(CalcForceLongEP<EPGrav>,
+#ifdef USE_INDIVIDUAL_RADII
+#ifdef USE_QUAD
+                                       CalcForceLongSP<PS::SPJQuadrupoleInAndOut>,
+#else
+                                       CalcForceLongSP<PS::SPJMonopoleInAndOut>,
+#endif //USE_QUAD
+#else
 #ifdef USE_QUAD
                                        CalcForceLongSP<PS::SPJQuadrupoleScatter>,
 #else
                                        CalcForceLongSP<PS::SPJMonopoleScatter>,
-#endif
+#endif //USE_QUAD
+#endif //USE_INDIVIDUAL_RADII
                                        system_grav,
                                        dinfo);
+#else // Use the same function as PENTACLE
+    setTreeForForce(system_grav, tree_grav, dinfo);
+    tree_grav.calcForce(CalcForceLongEP<EPGrav>,
+#ifdef USE_INDIVIDUAL_RADII
+#ifdef USE_QUAD
+                        CalcForceLongSP<PS::SPJQuadrupoleInAndOut>,
+#else
+                        CalcForceLongSP<PS::SPJMonopoleInAndOut>,
+#endif //USE_QUAD
+#else
+#ifdef USE_QUAD
+                        CalcForceLongSP<PS::SPJQuadrupoleScatter>,
+#else
+                        CalcForceLongSP<PS::SPJMonopoleScatter>,
+#endif //USE_QUAD
+#endif //USE_INDIVIDUAL_RADII
+                        true);                     
+#pragma omp parallel for
+    for (PS::S32 i=0; i<n_loc; i++) {
+         system_grav[i].copyFromForce(tree_grav.getForce(i));
+    }
+#endif
     correctForceLongInitial(system_grav, tree_grav, n_list, nei_dist, nei_tot_loc, ex_rank);
 
 #ifdef GAS_DRAG
@@ -259,7 +323,7 @@ int main(int argc, char *argv[])
     showParameter(init_file, dir_name, makeInit,
                   time_sys,
                   coef_ema, nx, ny,
-                  theta, n_leaf_limit, n_group_limit,
+                  theta, n_leaf_limit, n_group_limit, n_smp_ave,
                   t_end, dt_snap, r_max, r_min, seed);
 
     ////////////////////////////////
@@ -276,7 +340,7 @@ int main(int argc, char *argv[])
 
     outputStep(system_grav, time_sys, e_init, e_now, de,
                n_col_tot, n_frag_tot, dir_name, isnap, fout_eng, 
-               wtime, n_largestcluster,
+               wtime, n_largestcluster, n_cluster, n_isoparticle, 
                (time_sys==0.) );
     istep ++;
     isnap ++;
@@ -326,7 +390,7 @@ int main(int argc, char *argv[])
         wtime.calc_soft_force += wtime.lap(wtime.end_soft);
 #endif
         
-        
+     
         /////////////////////
         ///   Hard Part
 
@@ -411,7 +475,7 @@ int main(int argc, char *argv[])
         PS::Comm::barrier();
         wtime.communication_step = wtime.lap(PS::GetWtime());
 #endif
-
+    
         ////////////////////////
         /*   Time Integrate   */
         ////////////////////////
@@ -424,7 +488,7 @@ int main(int argc, char *argv[])
         //system_hard.showParticleID();
         assert( n_in == n_out );      
         
-        //PS::Comm::barrier();
+        PS::Comm::barrier();
         n_col  = system_hard.getNumberOfCollisionGlobal();
         //n_frag = system_hard.getNumberOfFragmentGlobal();
         if ( n_col ) n_frag = system_hard.addFragment2ParticleSystem(system_grav, id_next, fout_col);
@@ -435,7 +499,11 @@ int main(int argc, char *argv[])
 #ifdef OUTPUT_DETAIL
         edisp_d      = system_hard.getHardEnergyDissipationGlobal();
 #endif
-        n_largestcluster = system_hard.getNumberOfParticleInLargestClusterGlobal();
+        if( time_sys+FPGrav::dt_tree  == dt_snap*isnap ){
+            n_largestcluster = system_hard.getNumberOfParticleInLargestClusterGlobal();
+            n_cluster = system_hard.getNumberOfClusterGlobal();
+            n_isoparticle = system_hard.getNumberOfIsolatedParticleGlobal();
+        }
 
 #ifdef CALC_WTIME
         PS::Comm::barrier();
@@ -463,8 +531,7 @@ int main(int argc, char *argv[])
         }
 #endif
         ///   Hard Part
-        ////////////////////
-          
+        ////////////////////              
    
         PS::Comm::barrier();
         wtime.end_hard = wtime.start_soft = PS::GetWtime();
@@ -483,15 +550,55 @@ int main(int argc, char *argv[])
         ////////////////////////
         system_grav.exchangeParticle(dinfo);
         inputIDLocalAndMyrank(system_grav);
+#if 1
         tree_grav.calcForceAllAndWriteBack(CalcForceLongEP<EPGrav>,
+#ifdef USE_INDIVIDUAL_RADII
+#ifdef USE_QUAD
+                                           CalcForceLongSP<PS::SPJQuadrupoleInAndOut>,
+#else
+                                           CalcForceLongSP<PS::SPJMonopoleInAndOut>,
+#endif //USE_QUAD
+#else
 #ifdef USE_QUAD
                                            CalcForceLongSP<PS::SPJQuadrupoleScatter>,
 #else
                                            CalcForceLongSP<PS::SPJMonopoleScatter>,
-#endif
+#endif //USE_QUAD
+#endif //USE_INDIVIDUAL_RADII
                                            system_grav,
                                            dinfo);
+#else 
+        setTreeForForce(system_grav, tree_grav, dinfo);
+        tree_grav.calcForce(CalcForceLongEP<EPGrav>,
+#ifdef USE_INDIVIDUAL_RADII
+#ifdef USE_QUAD
+                            CalcForceLongSP<PS::SPJQuadrupoleInAndOut>,
+#else
+                            CalcForceLongSP<PS::SPJMonopoleInAndOut>,
+#endif //USE_QUAD
+#else
+#ifdef USE_QUAD
+                            CalcForceLongSP<PS::SPJQuadrupoleScatter>,
+#else
+                            CalcForceLongSP<PS::SPJMonopoleScatter>,
+#endif //USE_QUAD
+#endif //USE_INDIVIDUAL_RADII
+                            true);
+        n_loc = system_grav.getNumberOfParticleLocal();
+#pragma omp parallel for
+        for (PS::S32 i=0; i<n_loc; i++) {
+            system_grav[i].copyFromForce(tree_grav.getForce(i));
+        }
+#endif 
+#ifdef CALC_WTIME
+        PS::Comm::barrier();
+        wtime.calc_soft_force += wtime.calc_soft_force_step = wtime.lap(PS::GetWtime());
+#endif
         correctForceLong(system_grav, tree_grav, n_list, nei_dist, nei_tot_loc, ex_rank);
+#ifdef CALC_WTIME
+        PS::Comm::barrier();
+        wtime.neighbor_search += wtime.neighbor_search_step = wtime.lap(PS::GetWtime());
+#endif
         
 #ifdef GAS_DRAG
         gas_disk.calcGasDrag(system_grav, time_sys+FPGrav::dt_tree);
@@ -526,39 +633,88 @@ int main(int argc, char *argv[])
         ///////////////
         /*   Merge   */
         ///////////////
-        if ( n_col ) MergeParticle(system_grav, n_col, e_now.edisp);
+        if ( n_col ) {
+            MergeParticle(system_grav, n_col, e_now.edisp);
+        }
+                
+        bool resetDomain = false;
+        if(istep % 4096 == 0) {
+            // Remove Particle Out Of Boundary
+            removeOutOfBoundaryParticle(system_grav, e_now.edisp, r_max, r_min);
 
-        // Reset Number Of Particles
-        n_tot = system_grav.getNumberOfParticleGlobal();
-        n_loc = system_grav.getNumberOfParticleLocal();
+            dinfo.collectSampleParticle(system_grav);
+            dinfo.decomposeDomain();
+            system_grav.exchangeParticle(dinfo);
+            resetDomain = true;
+        }
         
         ///////////////////////////
         /*   Re-Calculate Soft   */
         ///////////////////////////
-        if ( n_col || istep % 128 == 0 ) {
-            if(istep % 128 == 0) {
-                dinfo.decomposeDomainAll(system_grav);
-                system_grav.exchangeParticle(dinfo);
-
-                // Remove Particle Out Of Boundary
-                removeOutOfBoundaryParticle(system_grav, e_now.edisp, r_max, r_min);
-                
-                // Reset Number Of Particles
-                n_tot = system_grav.getNumberOfParticleGlobal();
-                n_loc = system_grav.getNumberOfParticleLocal();
-            }
+        if ( n_col || resetDomain ) {
+            // Reset Number Of Particles
+            n_tot = system_grav.getNumberOfParticleGlobal();
+            n_loc = system_grav.getNumberOfParticleLocal();
+            
             inputIDLocalAndMyrank(system_grav);
             
             setCutoffRadii(system_grav);
+#ifdef CALC_WTIME
+            PS::Comm::barrier();
+            wtime.lap(PS::GetWtime());
+#endif
+#if 1
             tree_grav.calcForceAllAndWriteBack(CalcForceLongEP<EPGrav>,
+#ifdef USE_INDIVIDUAL_RADII
+#ifdef USE_QUAD
+                                               CalcForceLongSP<PS::SPJQuadrupoleInAndOut>,
+#else
+                                               CalcForceLongSP<PS::SPJMonopoleInAndOut>,
+#endif //USE_QUAD
+#else
 #ifdef USE_QUAD
                                                CalcForceLongSP<PS::SPJQuadrupoleScatter>,
 #else
                                                CalcForceLongSP<PS::SPJMonopoleScatter>,
-#endif
+#endif //USE_QUAD
+#endif //USE_INDIVIDUAL_RADII
                                                system_grav,
                                                dinfo);
+#else 
+            setTreeForForce(system_grav, tree_grav, dinfo);
+            tree_grav.calcForce(CalcForceLongEP<EPGrav>,
+#ifdef USE_INDIVIDUAL_RADII
+#ifdef USE_QUAD
+                                CalcForceLongSP<PS::SPJQuadrupoleInAndOut>,
+#else
+                                CalcForceLongSP<PS::SPJMonopoleInAndOut>,
+#endif //USE_QUAD
+#else
+#ifdef USE_QUAD
+                                CalcForceLongSP<PS::SPJQuadrupoleScatter>,
+#else
+                                CalcForceLongSP<PS::SPJMonopoleScatter>,
+#endif //USE_QUAD
+#endif //USE_INDIVIDUAL_RADII
+                                true);
+#pragma omp parallel for
+            for (PS::S32 i=0; i<n_loc; i++) {
+                system_grav[i].copyFromForce(tree_grav.getForce(i));
+            }
+#endif 
+#ifdef CALC_WTIME
+            PS::Comm::barrier();
+            PS::F64 time_tmp = wtime.lap(PS::GetWtime());
+            wtime.calc_soft_force_step += time_tmp;
+            wtime.calc_soft_force += time_tmp;
+#endif
             correctForceLongInitial(system_grav, tree_grav, n_list, nei_dist, nei_tot_loc, ex_rank);
+#ifdef CALC_WTIME
+            PS::Comm::barrier();
+            time_tmp = wtime.lap(PS::GetWtime());
+            wtime.neighbor_search_step += time_tmp;
+            wtime.neighbor_search += time_tmp;
+#endif
 #ifdef GAS_DRAG
 #pragma omp parallel for
             for(PS::S32 i=0; i<n_loc; i++) system_grav[i].acc += system_grav[i].acc_gd;
@@ -609,7 +765,7 @@ int main(int argc, char *argv[])
         if( time_sys  == dt_snap*isnap ){
             outputStep(system_grav, time_sys, e_init, e_now, de,
                        n_col_tot, n_frag_tot, dir_name, isnap, fout_eng,
-                       wtime, n_largestcluster);
+                       wtime, n_largestcluster, n_cluster, n_isoparticle);
             isnap ++;
 
             if ( wtime_max > 0. && wtime_max < difftime(time(NULL), wtime_start_program) ) break; 
@@ -631,7 +787,7 @@ int main(int argc, char *argv[])
     PS::Comm::barrier();
 
     wtime.now = PS::GetWtime();
-    wtime.showTime(dir_name, wtime_start_program);
+    wtime.showTime(dir_name, wtime_start_program, de_max, dinfo, system_grav, tree_grav);
     
     PS::Finalize();
     return 0;

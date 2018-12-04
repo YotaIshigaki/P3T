@@ -1,12 +1,9 @@
 #pragma once
 
-inline PS::F64 mutualRadius(PS::F64 r1, PS::F64 r2){
-    return std::max(r1, r2);
-}
 
-inline PS::F64 cutoff_f(PS::F64 y, PS::F64 g, PS::F64 ginv){
-    //const PS::F64 g = FPGrav::gamma;
-    //const PS::F64 ginv = pow(g-1., 7.);
+inline PS::F64 cutoff_f(PS::F64 y){
+    const PS::F64 g = EPGrav::gamma;
+    const PS::F64 g2 = EPGrav::g2;
     
     PS::F64 y2 = y*y;
     PS::F64 y3 = y2*y;
@@ -16,43 +13,38 @@ inline PS::F64 cutoff_f(PS::F64 y, PS::F64 g, PS::F64 ginv){
     PS::F64 y7 = y4*y3;
     
     PS::F64 f = 0.0;
-    f =( -10.0*y7/3.0 +14.0*(g+1.0)*y6 -21.0*(g*g +3.0*g +1.0)*y5
-         +y4*35.0*(g*g*g +9.0*g*g +9.0*g +1.0)/3.0 -70.0*y3*(g*g*g +3.0*g*g + g)
-         +210.0*(g +1.0)*g*g*y2 -140.0*g*g*g*y*log(y) +g*g*g*g*(g*g*g -7.0*g*g +21.0*g -35.0) )
-        / ginv;
+    f =( -10.0*y7/3.0 +14.0*(g+1.0)*y6 -21.0*(g2 +3.0*g +1.0)*y5
+         +y4*35.0*(g2*g +9.0*g2 +9.0*g +1.0)/3.0 -70.0*y3*(g2*g +3.0*g2 + g)
+         +210.0*(g +1.0)*g2*y2 -140.0*g2*g*y*log(y) +g2*g2*(g2*g -7.0*g2 +21.0*g -35.0) )
+        * EPGrav::g_1_inv7;
 
     return f;   
 }
 
-//#ifndef FORDEBUG
 
-inline PS::F64 cutoff_W(PS::F64 rij, PS::F64 r_out){
-    const PS::F64 g = FPGrav::gamma;
-    static const PS::F64 ginv = pow(FPGrav::gamma-1., 7.);
-    PS::F64 y = rij/r_out;
-
+inline PS::F64 cutoff_W(PS::F64 rij, PS::F64 r_out_inv){
+    const PS::F64 g = EPGrav::gamma;
+    PS::F64 y = rij * r_out_inv;
+    
     PS::F64 W = 0.0;
     if ( 1.0 <= y ) {
         W = 1.0;
     } else if ( y <= g ){
-        PS::F64 g2 = g*g;
-        PS::F64 g4 = g2*g2;
-        PS::F64 g5 = g4*g;
-        PS::F64 g6 = g4*g2;
-        W = 7.0*y*(g6-9.*g5+45.*g4-60.*g2*g*log(g)-45.*g2+9.*g-1.)/(3.*ginv);
+        W = y * EPGrav::w_y;
     } else {
-        PS::F64 f1 = cutoff_f(1., g, ginv);
-        PS::F64 f = cutoff_f(y, g, ginv);
+        PS::F64 f1 = cutoff_f(1.);
+        PS::F64 f = cutoff_f(y);
         W = f +y*(1.-f1);
     }
 
     return W;
 }
 
-inline PS::F64 cutoff_K(PS::F64 rij, PS::F64 r_out){
+inline PS::F64 cutoff_K(PS::F64 rij, PS::F64 r_out_inv){
     const PS::F64 g = FPGrav::gamma;
-    PS::F64 y = rij/r_out;
-    PS::F64 x = (y - g)/(1. - g);
+    
+    PS::F64 y = rij * r_out_inv;
+    PS::F64 x = (g - y) * EPGrav::g_1_inv;
     
     PS::F64 K = 0.;
     if( x < 0. ) {
@@ -67,11 +59,11 @@ inline PS::F64 cutoff_K(PS::F64 rij, PS::F64 r_out){
     return K;
 }
 
-inline PS::F64 cutoff_dK(PS::F64 rij, PS::F64 rijvij, PS::F64 r_out){
-    const PS::F64 g = FPGrav::gamma;
-    PS::F64 y = rij/r_out;
-    PS::F64 x = (y - g)/(1. - g);
-    PS::F64 dx = rijvij/(r_out*rij*(1.-g));
+inline PS::F64 cutoff_dK(PS::F64 rij, PS::F64 rij_inv, PS::F64 rijvij, PS::F64 r_out_inv){
+    static const PS::F64 g = FPGrav::gamma;
+    PS::F64 y = rij * r_out_inv;
+    PS::F64 x = (g - y) * EPGrav::g_1_inv;
+    PS::F64 dx = - rijvij * rij_inv * r_out_inv * EPGrav::g_1_inv;
 
     PS::F64 dK = 0.;
     if( x < 0. || x >= 1.0 ) {
@@ -87,16 +79,10 @@ inline PS::F64 cutoff_dK(PS::F64 rij, PS::F64 rijvij, PS::F64 r_out){
     return dK;
 }
 
-//#else
-//inline PS::F64 cutoff_W(PS::F64 rij, PS::F64 r_out){ return 0.; }
-//inline PS::F64 cutoff_K(PS::F64 rij, PS::F64 r_out){ return 0.; }
-//inline PS::F64 cutoff_dK(PS::F64 rij, PS::F64 rijvij, PS::F64 r_out){ return 0.;}
-//#endif
-
-inline PS::F64 cutoff_W2(PS::F64 dr2, PS::F64 r_out){
-    return cutoff_W(sqrt(dr2), r_out);
+inline PS::F64 cutoff_W2(PS::F64 dr2, PS::F64 r_out_inv){
+    return cutoff_W(sqrt(dr2), r_out_inv);
 }
 
-inline PS::F64 cutoff_W2(PS::F64 dr2, PS::F64 r_out1, PS::F64 r_out2){
-    return cutoff_W(sqrt(dr2), mutualRadius(r_out1, r_out2));
+inline PS::F64 cutoff_W2(PS::F64 dr2, PS::F64 r_out_inv1, PS::F64 r_out_inv2){
+    return cutoff_W(sqrt(dr2), std::min(r_out_inv1, r_out_inv2));
 }

@@ -279,6 +279,8 @@ inline PS::S32 HardSystem::timeIntegrate(Tpsys & pp,
                         frag_list.push_back(std::make_pair(i, ptcl_multi[i].size()-n_frag_tmp+j));
                 }
             }
+
+            for ( PS::S32 j=0; j<ptcl_multi[i].size(); j++ ) ptcl_multi[i][j].n_cluster = ptcl_multi[i].size();
                 
             for ( PS::S32 j=0; j<ptcl_multi[i].size()-n_frag_tmp; j++ ){
                 std::pair<bool,PS::S32> adr = list_multi.at(i).at(j);
@@ -305,6 +307,8 @@ inline PS::S32 HardSystem::timeIntegrate(Tpsys & pp,
                 pp[list_iso[i]] = FPGrav(pi);
             }
             n_ptcl_loc ++;
+
+            pp[list_iso[i]].n_cluster = 1;
         }
     }
     
@@ -428,36 +432,26 @@ void createNeighborCluster(Tpsys & pp,
                            std::vector<std::vector<PS::S32> > n_list)
 {
     const PS::S32 n_loc = pp.getNumberOfParticleLocal();
-    PS::S32 nei = 0;
-    PS::S32 j_id = 0;
-    PS::S32 id_cluster = 0;
-    //List Of Particles Which Have Neighbors Out Of Domain
     std::vector<PS::S32> out_of_domain_list;
     assert( n_list.size() == n_loc );
     
     for(PS::S32 i=0; i<n_loc; i++){
         assert( pp[i].neighbor == n_list[i].size() );
-        nei = pp[i].neighbor;
-        id_cluster = pp[i].id;
-        pp[i].id_cluster = pp[i].id;
         id2id_loc[pp[i].id] = i;
-
-        if(nei == 0) continue;
-        for(PS::S32 j=0; j<nei; j++){                
-            j_id = n_list[i].at(j);
-            if( id_cluster > j_id ) id_cluster = j_id;
-        }
-        pp[i].id_cluster = id_cluster;
         if( pp[i].inDomain == false ) out_of_domain_list.push_back(pp[i].id_local);
     }
 
     PS::S32 j_id_cluster = 0;
     bool check = true;
+    PS::S32 id_cluster[n_loc];
     while( check ){
         check = false;
+#pragma omp parallel for
         for(PS::S32 i=0; i<n_loc; i++){
+            PS::S32 j_id = 0;
+            PS::S32 nei = 0;
             nei = pp[i].neighbor;
-            id_cluster = pp[i].id_cluster;
+            id_cluster[i] = pp[i].id_cluster;
 
             if(nei == 0) continue;
             for(PS::S32 j=0; j<nei; j++){
@@ -465,24 +459,28 @@ void createNeighborCluster(Tpsys & pp,
                 if ( itr == id2id_loc.end() ) continue;
                 j_id = itr->second;
                 j_id_cluster = pp[j_id].id_cluster;
-                if( id_cluster > j_id_cluster ) id_cluster = j_id_cluster;
+                if( id_cluster[i] > j_id_cluster ) id_cluster[i] = j_id_cluster;
             }
-            if( pp[i].id_cluster != id_cluster ) check = true;
-            pp[i].id_cluster = id_cluster;
-            assert( pp[i].id >= id_cluster );
+        }
+#pragma omp parallel for reduction (||:check)
+        for(PS::S32 i=0; i<n_loc; i++){
+            if ( pp[i].id_cluster != id_cluster[i] ) check = check || true;
+            pp[i].id_cluster = id_cluster[i];
+            assert( pp[i].id >= id_cluster[i] );
         }
     }
 
     if( out_of_domain_list.size() != 0 ){
-        PS::S32 out_cluster_id = 0;
-        PS::S32 out_particle_local = 0;
-        nei = out_of_domain_list.size();
+        PS::S32 n_out = out_of_domain_list.size();
+#pragma omp parallel for
         for(PS::S32 i=0; i<n_loc; i++){
-            id_cluster = pp[i].id_cluster;
-            for(PS::S32 j=0; j<nei; j++){
+            PS::S32 out_cluster_id = 0;
+            PS::S32 out_particle_local = 0;
+            id_cluster[i] = pp[i].id_cluster;
+            for(PS::S32 j=0; j<n_out; j++){
                 out_particle_local = out_of_domain_list.at(j);
                 out_cluster_id = pp[out_particle_local].id_cluster;
-                if( id_cluster == out_cluster_id ){
+                if( id_cluster[i] == out_cluster_id ){
                     pp[i].inDomain = false;
                 }
             }
@@ -509,18 +507,20 @@ void createNeighborCluster_OutOfDomain(Tpsys & pp,
         if ( !pp[i].inDomain ) out_of_domain_list.push_back(i);
     }
     for (PS::S32 i=0; i<n_ex_pp; i++) id2id_ex[ex_pp[i].id] = i;
-    
-    PS::S32 id_cluster = 0;
-    PS::S32 nei = 0;
-    PS::S32 j_id = 0;
-    PS::S32 j_id_cluster = 0;
-    bool check = true;
-    while( check ){
-        check = false;
-        for(PS::S32 i=0; i<out_of_domain_list.size(); i++){
+
+    const PS::S32 n_out = out_of_domain_list.size();
+    PS::S32 id_cluster[std::max(n_out, n_ex_pp)];
+    bool check1 = true;
+    bool check2 = true;
+    while( check1 || check2 ){
+        check1 = check2 = false;
+#pragma omp parallel for
+        for (PS::S32 i=0; i<n_out; i++){
             PS::S32 i_id = out_of_domain_list.at(i);
-            nei = pp[i_id].neighbor;
-            id_cluster = pp[i_id].id_cluster;
+            PS::S32 nei = pp[i_id].neighbor;
+            PS::S32 j_id = 0;
+            PS::S32 j_id_cluster = 0;
+            id_cluster[i] = pp[i_id].id_cluster;
             assert (nei > 0);
             
             for(PS::S32 j=0; j<nei; j++){
@@ -531,23 +531,30 @@ void createNeighborCluster_OutOfDomain(Tpsys & pp,
                     assert ( itr_ex == id2id_ex.end() );
                     j_id = itr->second;
                     j_id_cluster = pp[j_id].id_cluster;
-                    if( id_cluster > j_id_cluster ) id_cluster = j_id_cluster;
+                    if( id_cluster[i] > j_id_cluster ) id_cluster[i] = j_id_cluster;
                     assert ( pp[j_id].inDomain == false );
                 } else {
                     assert ( itr_ex != id2id_ex.end() );
                     j_id = itr_ex->second;
                     j_id_cluster = ex_pp[j_id].id_cluster;
-                    if( id_cluster > j_id_cluster ) id_cluster = j_id_cluster;
+                    if( id_cluster[i] > j_id_cluster ) id_cluster[i] = j_id_cluster;
                     assert ( ex_pp[j_id].inDomain == false );
                 }
             }
-            if( pp[i_id].id_cluster != id_cluster ) check = true;
-            pp[i_id].id_cluster = id_cluster;
+        }
+#pragma omp parallel for reduction (||:check1)
+        for (PS::S32 i=0; i<n_out; i++){
+            PS::S32 i_id = out_of_domain_list.at(i);
+            if ( pp[i_id].id_cluster != id_cluster[i] ) check1 = check1 || true;
+            pp[i_id].id_cluster = id_cluster[i];
         }
         //PS::S32 nei_tmp = 0;
+#pragma omp  parallel for
         for(PS::S32 i=0; i<n_ex_pp; i++){
-            nei = ex_pp[i].neighbor;
-            id_cluster = ex_pp[i].id_cluster;
+            PS::S32 nei = ex_pp[i].neighbor;
+            PS::S32 j_id = 0;
+            PS::S32 j_id_cluster = 0;
+            id_cluster[i] = ex_pp[i].id_cluster;
             assert (nei > 0);
             
             for(PS::S32 j=0; j<nei; j++){
@@ -557,19 +564,22 @@ void createNeighborCluster_OutOfDomain(Tpsys & pp,
                 if ( itr != id2id_loc.end() ) {
                     j_id = itr->second;
                     j_id_cluster = pp[j_id].id_cluster;
-                    if( id_cluster > j_id_cluster ) id_cluster = j_id_cluster;
+                    if( id_cluster[i] > j_id_cluster ) id_cluster[i] = j_id_cluster;
                     assert ( pp[j_id].inDomain == false );
                 } else {
                     assert ( itr_ex != id2id_ex.end() );
                     j_id = itr_ex->second;
                     j_id_cluster = ex_pp[j_id].id_cluster;
-                    if( id_cluster > j_id_cluster ) id_cluster = j_id_cluster;
+                    if( id_cluster[i] > j_id_cluster ) id_cluster[i] = j_id_cluster;
                     assert ( ex_pp[j_id].inDomain == false );
                 }
             }
-            if( ex_pp[i].id_cluster != id_cluster ) check = true;
-            ex_pp[i].id_cluster = id_cluster;
-            assert( ex_pp[i].id >= id_cluster );
+        }
+#pragma omp parallel for reduction (||:check2)
+        for (PS::S32 i=0; i<n_ex_pp; i++){
+            if (  ex_pp[i].id_cluster != id_cluster[i] ) check2 = check2 || true;
+            ex_pp[i].id_cluster = id_cluster[i];
+            assert( ex_pp[i].id >= id_cluster[i] );
 
             //nei_tmp += nei;
         }

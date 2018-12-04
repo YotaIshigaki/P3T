@@ -45,6 +45,8 @@ void outputStep(Tpsys & pp,
                 std::ofstream & fout_eng,
                 Wtime wtime,
                 PS::S32 n_largestcluster,
+                PS::S32 n_cluster,
+                PS::S32 n_isoparticle,
                 bool bSnap=true)
 {
     const PS::S32 n_tot = pp.getNumberOfParticleGlobal();
@@ -65,13 +67,14 @@ void outputStep(Tpsys & pp,
                   << time_sys << "\t" << n_tot << "\t"
                   << std::scientific<<std::setprecision(15)
                   << e_now.etot << "\t" << de << "\t"
-                  << n_largestcluster
+                  << n_largestcluster << "\t" << n_cluster << "\t" << n_isoparticle
 #ifdef OUTPUT_DETAIL
                   << "\t" << m_max << "\t" << m_mean 
 #endif
 #ifdef CALC_WTIME
                   << "\t" << wtime.soft_step << "\t" << wtime.hard_step << "\t"
-                  << wtime.calc_soft_force_step << "\t" << wtime.calc_hard_force_step << "\t"
+                  << wtime.calc_soft_force_step << "\t" << wtime.neighbor_search_step << "\t"
+                  << wtime.calc_hard_force_step << "\t"
                   << wtime.create_cluster_step << "\t" << wtime.communication_step << "\t"
                   << wtime.output_step 
 #endif

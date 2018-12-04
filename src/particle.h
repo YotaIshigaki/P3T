@@ -2,8 +2,13 @@
 
 class ForceGrav{
 public:
+#ifdef CALC_EP_64bit
     PS::F64vec acc;
     PS::F64    phi;
+#else
+    PS::F32vec acc;
+    PS::F32    phi;
+#endif
     
     void clear(){
         acc = 0.;
@@ -26,19 +31,42 @@ class EPGrav{
 
 #ifdef USE_INDIVIDUAL_RADII
     PS::F64 r_out;
+    PS::F64 r_out_inv;
     PS::F64 r_search;
+#else
+    static PS::F64 r_out;
+    static PS::F64 r_out_inv;
+    static PS::F64 r_search;
 #endif
 
     static PS::F64 eps2;
-    static PS::F64 r_CUT;
-    static PS::F64 r_SEARCH;
     static PS::F64 R_cut;
     static PS::F64 R_search0;
     static PS::F64 R_search1;
-    static PS::F64 gamma;
+    static PS::F64 gamma;  
+    static PS::F64 g2;       // gamma^2
+    static PS::F64 g_1_inv;  // 1/(gamma-1)
+    static PS::F64 g2_1_inv; // 1/(gamma^2-1)
+    static PS::F64 g_1_inv7; // 1/(gamma-1)^7
+    static PS::F64 w_y;      // (g^6-9g^5+45*g^4-60g^3*log(g)-45g^2+9g-1)/3(g-1)^7
+
+    static void setGamma(){
+        //gamma  = g;
+        g2       = gamma*gamma;
+        g_1_inv  = 1./(gamma - 1.);
+        g2_1_inv = 1./(g2 - 1.);
+        
+        PS::F64 g_1_inv3 = g_1_inv * g_1_inv * g_1_inv;
+        g_1_inv7 = g_1_inv3 * g_1_inv3 * g_1_inv;
+
+        PS::F64 g4 = g2*g2;
+        PS::F64 g6 = g4*g2;
+        w_y = 7./3. * (g6 -9.*g4*gamma +45.*g4 -60.*g2*gamma*log(gamma) -45.*g2 +9.*gamma-1.)
+            * g_1_inv7;
+    }
 
     PS::F64 getRSearch() const{
-        return r_SEARCH;
+        return r_search;
     }
     PS::F64vec getPos() const {
         return pos;
@@ -59,19 +87,28 @@ class EPGrav{
         myrank = fp.myrank;
         
 #ifdef USE_INDIVIDUAL_RADII
-        r_out    = fp.r_out;
-        r_search = fp.r_search;
+        r_out     = fp.r_out;
+        r_out_inv = fp.r_out_inv;
+        r_search  = fp.r_search;
 #endif
     }
 };
 
 PS::F64 EPGrav::eps2   = 0.;
-PS::F64 EPGrav::r_CUT;
-PS::F64 EPGrav::r_SEARCH;
+#ifndef USE_INDIVIDUAL_RADII
+PS::F64 EPGrav::r_out;
+PS::F64 EPGrav::r_out_inv;
+PS::F64 EPGrav::r_search;
+#endif
 PS::F64 EPGrav::R_cut     = 1.;
 PS::F64 EPGrav::R_search0 = 1.;
 PS::F64 EPGrav::R_search1 = 1.;
-PS::F64 EPGrav::gamma     = 0.1;
+PS::F64 EPGrav::gamma     = 0.5;
+PS::F64 EPGrav::g2;       // gamma^2
+PS::F64 EPGrav::g_1_inv;  // 1/(gamma-1)
+PS::F64 EPGrav::g2_1_inv; // 1/(gamma^2-1)
+PS::F64 EPGrav::g_1_inv7; // 1/(gamma-1)^7
+PS::F64 EPGrav::w_y;      // (g^6-9g^5+45*g^4-60g^3*log(g)-45g^2+9g-1)/3(g-1)^7
 
 
 class FPGrav : public EPGrav {
@@ -99,6 +136,7 @@ class FPGrav : public EPGrav {
 
     PS::S32 id_cluster;
     PS::S32 neighbor;
+    PS::S32 n_cluster;
     
     bool inDomain;
     bool isDead;
@@ -125,22 +163,34 @@ class FPGrav : public EPGrav {
         PS::F64 ax = 1.0 / (2.0/sqrt(pos*pos) - vel*vel/m_sun);
         return pow(mass/(3.*m_sun), 1./3.) * ax;
     }
+    //PS::F64 getRHill() const {
+    //    return pow(mass/(3.*m_sun), 1./3.);
+    //}
+    PS::F64 getKeplerVelocity() const {
+        PS::F64 r = sqrt(pos.x * pos.x + pos.y * pos.y);
+        return sqrt(m_sun/r);
+    }
 #ifdef USE_INDIVIDUAL_RADII
-    PS::F64 setMyROutRSearch(PS::F64 vdisp){
-        PS::F64 ax = 1.0 / (2.0/sqrt(pos*pos) - vel*vel/m_sun);
-        PS::F64 rHill = std::max(pow(mass/(3.*m_sun), 1./3.) * ax, rHill_min);
+    PS::F64 setROutRSearch(PS::F64 vdisp_k){
+        //PS::F64 ax = 1.0 / (2.0/sqrt(pos*pos) - vel*vel/m_sun);
+        PS::F64 rHill = std::max(getRHill(), rHill_min);
+        PS::F64 v_kep = getKeplerVelocity();
         
-        r_out    = R_cut    *rHill;
-        r_search = R_search0*rHill + R_search1*vdisp*dt_tree;
+        r_out     = R_cut    *rHill;
+        r_out_inv = 1. / r_out;
+        r_search  = R_search0*rHill + R_search1*vdisp_k*v_kep*dt_tree;
         
         return rHill;
     }
-#endif
-    static void setRCutRSearch(PS::F64 rHill_glb,
-                               PS::F64 vdisp){
-        r_CUT    = R_cut    *rHill_glb;
-        r_SEARCH = R_search0*rHill_glb + R_search1*vdisp*dt_tree;
+#else
+    static void setROutRSearch(PS::F64 rHill_glb,
+                               PS::F64 v_kep_glb,
+                               PS::F64 vdisp_k){
+        r_out     = R_cut    *rHill_glb;
+        r_out_inv = 1. / r_out;
+        r_search  = R_search0*rHill_glb + R_search1*vdisp_k*v_kep_glb*dt_tree;
     }
+#endif
     void setRPlanet(PS::F64 m) {
         r_planet = pow(0.75*m/(M_PI*dens), 1./3.);
     }
@@ -154,39 +204,32 @@ class FPGrav : public EPGrav {
     }
 
     void writeAscii(FILE* fp) const {
-        fprintf(fp, "%d\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%d\n",
+        fprintf(fp, "%d\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%d\t%d\n",
         //fprintf(fp, "%d\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%20.15e\t%20.15e\n", 
                 this->id, this->mass,
                 this->pos.x, this->pos.y, this->pos.z,
                 this->vel.x, this->vel.y, this->vel.z,
-                this->neighbor);
+                this->neighbor, this->n_cluster);
         //this->r_out, this->r_search);
     }
     void readAscii(FILE* fp) {
-        fscanf(fp, "%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%d\n",
+        fscanf(fp, "%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%d\t%d\n",
         //fscanf(fp, "%d\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\t%lf\n",
                &this->id, &this->mass,
                &this->pos.x, &this->pos.y, &this->pos.z,
                &this->vel.x, &this->vel.y, &this->vel.z,
-               &this->neighbor);
+               &this->neighbor, &this->n_cluster);
                //&this->r_out, &this->r_search);
     }
 
     void velKick(){
         vel += 0.5*dt_tree*acc;
     }
-    //void velKickGas(){
-    //    vel += 0.5*dt_tree*acc_d;
-    //}
     
     void calcDeltatInitial(){
         PS::F64 dt_next = 0.5*dt_tree;
         
-#if 0
         PS::F64 a00 = alpha2 * mass / (r_out * r_out);
-#else
-        PS::F64 a00 = alpha2 * mass / (r_CUT * r_CUT);
-#endif
         PS::F64 dt_2 = (acc_d*acc_d + a00*a00)/(jerk*jerk);
         PS::F64 dt_1 = eta_0 * sqrt(dt_2);
         PS::F64 rem = fmod(time, dt_next);
@@ -332,11 +375,7 @@ class FPHard : public FPGrav {
     void calcDeltatInitial(){
         PS::F64 dt_next = 0.5*dt_tree;
 
-#if 0
         PS::F64 a00 = alpha2 * mass / (r_out * r_out);
-#else
-        PS::F64 a00 = alpha2 * mass / (r_CUT * r_CUT);
-#endif
         PS::F64 dt_2 = (acc_d*acc_d + a00*a00)/(jerk*jerk);
         PS::F64 dt_1 = eta_0 * sqrt(dt_2);
         PS::F64 rem = fmod(time, dt_next);
@@ -351,14 +390,12 @@ class FPHard : public FPGrav {
         
         dt = dt_next;
     }
+
     void calcDeltat(){
         PS::F64 dt_next = 2.*dt;
 
-#if 0
+
         PS::F64 a00 = alpha2 * mass / (r_out * r_out);
-#else
-        PS::F64 a00 = alpha2 * mass / (r_CUT * r_CUT);
-#endif
         PS::F64vec a1_2 = a2 + a3*dt;
         PS::F64vec a1_3 = a3;
         PS::F64 b1 = sqrt(acc_d*acc_d + a00*a00);
@@ -384,38 +421,37 @@ class FPHard : public FPGrav {
 
 
 template <class Tpsys>
-void calcVelDisp(Tpsys & pp,
-                   const PS::S32 n_tot,
-                   const PS::S32 n_loc,
-                   PS::F64 & v_disp)
+PS::F64 calcVelDisp(Tpsys & pp,
+                    const PS::S32 n_tot,
+                    const PS::S32 n_loc)
 {
-    PS::F64 m_sun   = FPGrav::m_sun;
+    //PS::F64 m_sun   = FPGrav::m_sun;
     PS::F64 ecc_rms_loc = 0.0;
     PS::F64 inc_rms_loc = 0.0;
-    PS::F64 v_kep_max_loc = 0.0;
-    v_disp = 0.0;
+    //PS::F64 v_kep_max_loc = 0.0;
 
-#pragma omp parallel for
+#pragma omp parallel for reduction (+:ecc_rms_loc, inc_rms_loc)
     for(PS::S32 i=0; i<n_loc; i++){
         PS::F64 ax;
         PS::F64 ecc = pp[i].getEccentricity(ax);
         PS::F64vec h;
         PS::F64 inc = pp[i].getInclination(h);
-        PS::F64 v_kep = sqrt(m_sun/ax);
+        //PS::F64 v_kep = sqrt(m_sun/ax);
 
-#pragma omp critical
-        {
-            ecc_rms_loc += ecc*ecc;
-            inc_rms_loc += inc*inc;
-            if ( v_kep > v_kep_max_loc ) v_kep_max_loc = v_kep;
-        }
+        ecc_rms_loc += ecc*ecc;
+        inc_rms_loc += inc*inc;
+        //#pragma omp critical
+        //{
+            //if ( v_kep > v_kep_max_loc ) v_kep_max_loc = v_kep;
+        //}
     }
     
     PS::F64 ecc_rms2 = PS::Comm::getSum(ecc_rms_loc)/n_tot;
     PS::F64 inc_rms2 = PS::Comm::getSum(inc_rms_loc)/n_tot;
-    PS::F64 v_kep_max = PS::Comm::getMaxValue(v_kep_max_loc);
+    //PS::F64 v_kep_max = PS::Comm::getMaxValue(v_kep_max_loc);
     
-    v_disp = (ecc_rms2 + inc_rms2)*v_kep_max;
+    //return (ecc_rms2 + inc_rms2)*v_kep_max;
+    return ecc_rms2 + inc_rms2;
 }
 
 template <class Tpsys>
@@ -423,26 +459,30 @@ void setCutoffRadii(Tpsys & pp)
 {
     const PS::S32 n_loc = pp.getNumberOfParticleLocal();
     const PS::S32 n_tot = pp.getNumberOfParticleGlobal();
-    PS::F64 v_disp;
-    //PS::F64 dens = FPGrav::dens;
+    PS::F64 v_disp_k = calcVelDisp(pp, n_tot, n_loc);
     
-    calcVelDisp(pp, n_tot, n_loc, v_disp);
-
-    PS::F64 rHill_loc = 0.;
-#pragma omp parallel for
-    for(PS::S32 i=0;i<n_loc;i++){
 #ifdef USE_INDIVIDUAL_RADII
-        PS::F64 rHill = pp[i].setMyROutRSearch(v_disp);
-#else
-        PS::F64 rHill = std::max(pp[i].getRHill(), FPGrav::rHill_min);
-#endif
-        //pp[i].r_planet = pow(0.75*pp[i].mass/(M_PI*dens), 1./3.);
+#pragma omp parallel for
+    for(PS::S32 i=0; i<n_loc; i++){
+        pp[i].setROutRSearch(v_disp_k);
         pp[i].setRPlanet();
+    }
+#else
+    PS::F64 rHill_loc = 0.;
+    PS::F64 v_kep_loc = 0.;
+#pragma omp parallel for
+    for(PS::S32 i=0; i<n_loc; i++){
+        PS::F64 rHill = std::max(pp[i].getRHill(), FPGrav::rHill_min);
+        PS::F64 v_kep = pp[i].getKeplerVelocity();
 #pragma omp critical
-        if ( rHill > rHill_loc ) rHill_loc = rHill;
+        {
+            if ( rHill > rHill_loc ) rHill_loc = rHill;
+            if ( v_kep > v_kep_loc ) v_kep_loc = v_kep;
+        }
+        pp[i].setRPlanet();
     }
     PS::F64 rHill_glb = PS::Comm::getMaxValue(rHill_loc);
-    FPGrav::setRCutRSearch(rHill_glb, v_disp);
-    
-    //if ( PS::Comm::getRank() == 0) { PRC(EPGrav::r_CUT);PRL(EPGrav::r_SEARCH); }
+    PS::F64 v_kep_glb = PS::Comm::getMaxValue(v_kep_loc);
+    FPGrav::setROutRSearch(rHill_glb, v_kep_glb, v_disp_k);
+#endif
 }
