@@ -1,34 +1,5 @@
 #pragma once
 
-inline PS::F64 calcErf(PS::F64 x)
-{
-    const PS::F64 p  = 0.47047;
-    const PS::F64 a1 = 0.3480242;
-    const PS::F64 a2 = -0.0958798;
-    const PS::F64 a3 = 0.7478556;
-    PS::F64 t = 1./(1.+p*x);
-
-    return 1. - ( a1*t + a2*t*t + a3*t*t*t )*exp(-x*x);
-}
-
-inline PS::F64 getGaussian(PS::F64 sigma)
-{
-    PS::F64 R = drand48();
-
-    PS::F64 X;
-    if ( R < 0.2 ) {
-        X = R / M_2_SQRTPI;
-    } else {
-        PS::F64 X0 = R;
-        for ( PS::S32 i=0; i<10; i++ ){
-            X = X0 + ( R-calcErf(X0) )*exp(-X0*X0);
-            X0 = X;
-        }
-    }
-
-    return sqrt(2.*sigma*sigma) * X;
-}
-
 class SolidDisk{
 public:
     static PS::S32 n_init;

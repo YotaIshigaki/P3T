@@ -50,8 +50,8 @@ class EPGrav{
     static PS::F64 g_1_inv7; // 1/(gamma-1)^7
     static PS::F64 w_y;      // (g^6-9g^5+45*g^4-60g^3*log(g)-45g^2+9g-1)/3(g-1)^7
 
-    static void setGamma(){
-        //gamma  = g;
+    static void setGamma(PS::F64 g){
+        gamma  = g;
         g2       = gamma*gamma;
         g_1_inv  = 1./(gamma - 1.);
         g2_1_inv = 1./(g2 - 1.);
@@ -64,16 +64,18 @@ class EPGrav{
         w_y = 7./3. * (g6 -9.*g4*gamma +45.*g4 -60.*g2*gamma*log(gamma) -45.*g2 +9.*gamma-1.)
             * g_1_inv7;
     }
-
-    PS::F64 getRSearch() const{
-        return r_search;
-    }
-    PS::F64vec getPos() const {
-        return pos;
-    }
-    PS::F64 getCharge() const {
-        return mass;
-    }
+    PS::F64 getGamma() const{ return gamma; }
+    PS::F64 getGamma2() const{ return g2; }
+    PS::F64 getGamma_1_inv() const{ return g_1_inv; }
+    PS::F64 getGamma2_1_inv() const{ return g2_1_inv; }
+    PS::F64 getEps2() const{ return eps2; }
+    
+    PS::F64 getROut() const { return r_out; }
+    PS::F64 getROut_inv() const{ return r_out_inv; }
+    PS::F64 getRSearch() const{ return r_search; }
+    
+    PS::F64vec getPos() const { return pos; }
+    PS::F64 getCharge() const { return mass; }
 
     void copyFromFP(const EPGrav & fp){
         pos = fp.pos;
@@ -93,22 +95,6 @@ class EPGrav{
 #endif
     }
 };
-
-PS::F64 EPGrav::eps2   = 0.;
-#ifndef USE_INDIVIDUAL_RADII
-PS::F64 EPGrav::r_out;
-PS::F64 EPGrav::r_out_inv;
-PS::F64 EPGrav::r_search;
-#endif
-PS::F64 EPGrav::R_cut     = 1.;
-PS::F64 EPGrav::R_search0 = 1.;
-PS::F64 EPGrav::R_search1 = 1.;
-PS::F64 EPGrav::gamma     = 0.5;
-PS::F64 EPGrav::g2;       // gamma^2
-PS::F64 EPGrav::g_1_inv;  // 1/(gamma-1)
-PS::F64 EPGrav::g2_1_inv; // 1/(gamma^2-1)
-PS::F64 EPGrav::g_1_inv7; // 1/(gamma-1)^7
-PS::F64 EPGrav::w_y;      // (g^6-9g^5+45*g^4-60g^3*log(g)-45g^2+9g-1)/3(g-1)^7
 
 
 class FPGrav : public EPGrav {
@@ -137,6 +123,9 @@ class FPGrav : public EPGrav {
     PS::S32 id_cluster;
     PS::S32 neighbor;
     PS::S32 n_cluster;
+#ifdef CHECK_NEIGHBOR
+    PS::S32 true_neighbor;
+#endif
     
     bool inDomain;
     bool isDead;
@@ -238,6 +227,8 @@ class FPGrav : public EPGrav {
             dt_next *= 0.5;
             rem = fmod(time, dt_next);
         }
+        if ( dt > 0. ) 
+            while( 2.*dt < dt_next ) dt_next *= 0.5;
         while( dt_1 < dt_next ) dt_next *= 0.5;
         if( dt_next < 2.*dt_min ) dt_next = dt_min;
         
@@ -245,14 +236,6 @@ class FPGrav : public EPGrav {
     }
 };
 
-PS::F64 FPGrav::m_sun     = 1.;
-PS::F64 FPGrav::dens      = 5.049667e6;
-PS::F64 FPGrav::dt_tree   = pow2(-5);
-PS::F64 FPGrav::dt_min    = pow2(-13);
-PS::F64 FPGrav::eta       = 0.01;
-PS::F64 FPGrav::eta_0     = 0.001;
-PS::F64 FPGrav::alpha2    = 0.01;
-PS::F64 FPGrav::rHill_min = 3.15557400894e-04;
 
 
 class FPHard : public FPGrav {
@@ -372,6 +355,7 @@ class FPHard : public FPGrav {
         vel = vp + a2*Dt3/6.0 + a3*Dt2*Dt2/24.0;
     }
 
+#if 0
     void calcDeltatInitial(){
         PS::F64 dt_next = 0.5*dt_tree;
 
@@ -390,10 +374,11 @@ class FPHard : public FPGrav {
         
         dt = dt_next;
     }
+#endif
 
     void calcDeltat(){
-        PS::F64 dt_next = 2.*dt;
-
+        //PS::F64 dt_next = 2.*dt;
+         PS::F64 dt_next = std::min(2.*dt, 0.5*dt_tree);
 
         PS::F64 a00 = alpha2 * mass / (r_out * r_out);
         PS::F64vec a1_2 = a2 + a3*dt;
@@ -451,7 +436,7 @@ PS::F64 calcVelDisp(Tpsys & pp,
     //PS::F64 v_kep_max = PS::Comm::getMaxValue(v_kep_max_loc);
     
     //return (ecc_rms2 + inc_rms2)*v_kep_max;
-    return ecc_rms2 + inc_rms2;
+    return sqrt(ecc_rms2 + inc_rms2);
 }
 
 template <class Tpsys>

@@ -1,5 +1,4 @@
-#PS_PATH = ../FDPS-5.0/src/
-PS_PATH = ../../FDPS-5.0/src/ 
+PS_PATH = ../../FDPS-5.0a/src/ 
 INC = -I$(PS_PATH)
 
 #CC = clang++ -std=c++11
@@ -13,12 +12,14 @@ CFLAGS += -funroll-loops
 CFLAGS += -DPARTICLE_SIMULATOR_THREAD_PARALLEL -fopenmp
 CFLAGS += -DPARTICLE_SIMULATOR_MPI_PARALLEL
 #CFLAGS += -march=skylake-avx512
-CFLAGS += -mavx2
+CFLAGS += -march=core-avx2
+#CFLAGS += -mavx2
 #CFLAGS += -mavx512f -mavx512dq
+#CFLAGS += -DFAST_ALL_TO_ALL_FOR_K
 
 CFLAGS += -DUSE_QUAD
 #CFLAGS += -DCALC_EP_64bit
-#CFLAGS += -DPARALLEL_I8J2
+#CFLAGS += -DPARALLEL_I4J4
 #CFLAGS += -DCUTOFF_0
 CFLAGS += -DCOLLISION
 #CFLAGS += -DUSE_INDIVIDUAL_RADII
@@ -28,15 +29,21 @@ CFLAGS += -DOUTPUT_DETAIL
 CFLAGS += -DCALC_WTIME
 CFLAGS += -DMONAR
 #CFLAGS += -DFORDEBUG
+CFLAGS += -DCHECK_NEIGHBOR
 CFLAGS += -g
 
 
 SRC = main_p3t.cpp
 PROGRAM = $(SRC:%.cpp=%.out)
+HEADER = mathfunc.h kepler.h energy.h particle.h disk.h gravity.h gravity_kernel.hpp collisionA.h collisionB.h hermite.h hard.h read.h time.h func.h
 
-$(PROGRAM):$(SRC)
-	$(CC) $(INC) $(CFLAGS) -o $@ $<
+$(PROGRAM): main_p3t.cpp gravity_kernel.o $(HEADER)
+	$(CC) $(INC) $(CFLAGS) -o $@ $< gravity_kernel.o
+
+
+gravity_kernel.o: gravity_kernel.cpp avx.h particle.h
+	$(CC) $(INC) $(CFLAGS) -c $<
 
 clean:
-	rm -f $(PROGRAM) *.o *~
+	rm -f *.out *.o *~
 

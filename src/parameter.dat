@@ -9,25 +9,25 @@
 seed            = 1                     # random seed
 
 # FOR INPUT & UTPUT
-init_file       = INIT3000.dat          # initial condition file name
+init_file       = init_500K.dat          # initial condition file name
 existsHeader    = 0                     # flad as to whether header exists in InitFile
 output_dir      = TEST                  # output directory name
 isRestart       = 0
 
 # FOR INITIAL CONDITION OF SOLID DISK
 makeInit        = 1                     # flad as to whether initial condition is created in program
-n_init          = 3000                  # number of initial particle
-m_init          = 1.e23CGS              # mass of initial particle
+n_init          = 10000                  # number of initial particle
+m_init          = 2.e23CGS              # mass of initial particle
 p               = 1.5                   # power of column density distribution of solid disk
 f_dust          = 0.71                  # scaling factor of column density distribution
 eta_ice         = 30./7.1               # ice boundary factor of column density distribution at a > a_ice
-a_in            = 0.98                  # maximun semimajor axis of particle
-a_out           = 1.02                  # minimum semimajor axis of particle
+a_in            = 0.9                  # maximun semimajor axis of particle
+a_out           = 1.1                  # minimum semimajor axis of particle
 a_ice           = 2.0                   # semimajor axis of ice line
 
 # FOR GAS DISK
 alpha_gas       = 11./4.                # power of density of gas disk
-beta_gas        = 0.5.                  # power of temperature of gas disk
+beta_gas        = 0.5                  # power of temperature of gas disk
 f_gas           = 0.71                  # scaling factor of column density distribution
 tau_gas         = 0.                    # timescale of gas dissipation (no dissipation if tau_gas=0)
 C_d             = 1.                    # non-dimensional drag coefficient.
@@ -44,10 +44,10 @@ n_leaf_limit    = 8                     # maximum number of particle in leaf
 n_group_limit   = 64                    # maximun number of particle sharing interaction list
 
 # FOR TIMESTEP
-t_end           = 10                    # time to finish initegration
-dt_tree         = 2^-6                  # timestep of tree (soft)
-dt_snap         = 2^-6                  # time interval to output snapshot
-dt_min          = 2^-30                 # minimum timestep (hard)
+t_end           = 10                     # time to finish initegration
+dt_tree         = 2^-5                  # timestep of tree (soft)
+dt_snap         = 1                  # time interval to output snapshot
+dt_min          = 2^-17                 # minimum timestep (hard)
 eta             = 0.01                  # parameter eta to decide timestep (hard)
 eta_0           = 0.001                 # parameter eta to decide initial timestep (hard)
 alpha           = 0.1                   # parameter alpha to decide timestep (hard)
@@ -56,18 +56,19 @@ alpha           = 0.1                   # parameter alpha to decide timestep (ha
 m_sun           = 1.                    # mass of central star
 dens            = 2.CGS                 # density of particles  
 eps             = 0.                    # Softening parameter                   
-R_cut           = 1.0                   # parameter to decide cut-off radius
-R_search0       = 1.0                   # parameter to decide search radius
-R_search1       = 1.0                   # parameter to decide search radius
+R_cut           = 4.0                   # parameter to decide cut-off radius
+R_search0       = 4.0                   # parameter to decide search radius
+R_search1       = 3.0                   # parameter to decide search radius
 gamma           = 0.5                   # ratio of outer to inner cut-off radius
 rHill_min       = 3.15557400894e-04     # minimum Hill radius to decide cut-off radius
+#rHill_min       = 0.     # minimum Hill radius to decide cut-off radius
 r_max           = 10.                   # maximum distance of particle from central star 
 r_min           = 0.2                   # minimum distance of particle from central star 
 
 # FOR COLLISION
 f               = 5.                    # Enhancement factor of particle radius
 m_min           = 1.e23/10.CGS          # minimum mass of fragment particle
-a_frag          = 0.5                   # ratio of total fragments mass to impactor mass
+a_frag          = 0.0                   # ratio of total fragments mass to impactor mass
 N_frag          = 30
 dens_imp        = 1.CGS 
 c_s             = 1.8

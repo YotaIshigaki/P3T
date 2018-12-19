@@ -230,7 +230,7 @@ PS::S32 readParameter(const char * param_file,
             EPGrav::R_search1 = getvalue(value, 1., 1.);
             
         } else if ( name == "gamma" ){
-            EPGrav::gamma = getvalue(value, 1., 1.);
+            EPGrav::setGamma(getvalue(value, 1., 1.));
 
         } else if ( name == "rHill_min" ){
             FPGrav::rHill_min = getvalue(value, L_MKS, L_CGS);
@@ -254,7 +254,6 @@ PS::S32 readParameter(const char * param_file,
         Collision::readParameter(name, value);
     }
     ifs.close();
-    EPGrav::setGamma();
 
     if ( !isPowerOf2(FPGrav::dt_tree) ){
         std::cerr << "dt_tree is not power of 2. (dt_tree = " << FPGrav::dt_tree << ")" << std::endl;

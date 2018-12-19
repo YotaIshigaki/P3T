@@ -116,9 +116,9 @@ void Wtime::showTime(char * dir_name,
                    << "\tCalc Moment Local Tree:   " << time_prof_t.calc_moment_local_tree << std::endl
                    << "\tCalc Moment Global Tree:  " << time_prof_t.calc_moment_global_tree << std::endl
                    << "\tMake LET 1st:             " << time_prof_t.make_LET_1st << std::endl
-            //<< "\tMake LET 2nd: " << time_prof_t.make_LET_2nd << std::endl
+		   << "\tMake LET 2nd:             " << time_prof_t.make_LET_2nd << std::endl
                    << "\tExchange LET 1st:         " << time_prof_t.exchange_LET_1st << std::endl
-            //<< "\tExchange LET 2nd: " << time_prof_t.exchange_LET_2nd << std::endl 
+		   << "\tExchange LET 2nd:         " << time_prof_t.exchange_LET_2nd << std::endl 
                    << std::endl
                    << "\tInteraction EPEP: " << n_EPEP << std::endl
                    << "\tInteraction EPSP: " << n_EPSP << std::endl

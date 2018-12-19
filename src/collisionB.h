@@ -203,7 +203,7 @@ inline PS::S32 Collision::collisionOutcome(std::vector<Tp> & pfrag)
 
     PS::F64 R_tar = pow(0.75*mass_tar/(M_PI*FPGrav::dens), 1./3.);
     PS::F64 R_imp = pow(0.75*mass_imp/(M_PI*FPGrav::dens), 1./3.);
-    PS::F64 R = pow(0.75*(mass_imp + mass_tar)/(M_PI*FPGrav::dens), 1./3.);
+    PS::F64 R = pow(0.75*(mass_imp + mass_tar)/(M_PI*dens), 1./3.);
     PS::F64 b0 = sin(col_angle);
     PS::F64 b  = b0;
     PS::F64 vel_impact = sqrt(vimp*vimp); // impact velocity corrected for enhancement factor
@@ -248,7 +248,7 @@ inline PS::S32 Collision::collisionOutcome(std::vector<Tp> & pfrag)
     }
     if ( mass_rem < m_min ) mass_rem = m_min;
 
-    
+#if 1
     if ( b <= R_tar/(R_tar + R_imp) || mass_rem < mass_tar ) { // Fragmentation
         mass_frag = mass_imp + mass_tar - mass_rem;
         
@@ -290,6 +290,7 @@ inline PS::S32 Collision::collisionOutcome(std::vector<Tp> & pfrag)
         HitAndRun = false;
         
     } else {
+#endif
         PS::F64 beta = ( l < 2.*R_tar ) ? (3.*R_tar*l*l-l*l*l)/(4.*R_tar*R_tar*R_tar) : 1.;
         PRC(l/R_imp);PRL(beta);
         //assert ( 0. <= beta && beta <= 1. );
@@ -360,8 +361,9 @@ inline PS::S32 Collision::collisionOutcome(std::vector<Tp> & pfrag)
         vel_tar_new = vel_g + vel_tar_new_n*e_n + vel_tar_new_t*e_t;
         vel_imp_new = vel_g + vel_imp_new_n*e_n + vel_imp_new_t*e_t;
         vel_imp_new = (mass_imp*vel_imp_new - massvel)/mass_rem;
-        
+#if 1
     }
+#endif
     
     return n_frag;
 }

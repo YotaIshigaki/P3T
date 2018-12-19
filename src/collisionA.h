@@ -97,8 +97,6 @@ class Collision0{
     }
 };
 
-PS::F64 Collision0::f = 1.;
-PS::F64 Collision0::m_min = 9.426627927538057e-12;
 
 template <class Tpsys>
 inline void Collision0::inputPair(Tpsys & pp,

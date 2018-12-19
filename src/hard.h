@@ -1,5 +1,6 @@
 #pragma once
 
+
 class HardSystem{
 public:
     std::vector<PS::S32> list_iso;
@@ -146,13 +147,12 @@ public:
                                   PS::S32 n_col_tot,
                                   PS::S32 n_frag_tot,
                                   PS::S32 & id_next);
-    template <class Tpsys>
+    template <class Tpsys, class Tp>
     PS::S32 addFragment2ParticleSystem(Tpsys & pp,
+                                       Tp * & ex_pp,
                                        PS::S32 & id_next,
                                        std::ofstream & fp); 
 };
-
-PS::F64 HardSystem::f = 1.;
 
 
 template <class Tpsys, class Tp>
@@ -294,6 +294,7 @@ inline PS::S32 HardSystem::timeIntegrate(Tpsys & pp,
                 n_ptcl_loc ++;
             }
             
+            
         } else {
             PS::S32 i = ii - list_multi.size();
             //#pragma omp parallel for reduction(+:n_ptcl_loc)
@@ -339,8 +340,10 @@ inline void HardSystem::rewriteFragmentID(PS::S32 * & id_frag_list,
     for ( PS::S32 i=0; i<n_col_tot; i++ )
         col_list[i].setNewFragmentID(id_old2new);
 }
-template <class Tpsys>
+
+template <class Tpsys, class Tp>
 inline PS::S32 HardSystem::addFragment2ParticleSystem(Tpsys & pp,
+                                                      Tp * & ex_pp,
                                                       PS::S32 & id_next,
                                                       std::ofstream & fp)
 {
@@ -401,6 +404,25 @@ inline PS::S32 HardSystem::addFragment2ParticleSystem(Tpsys & pp,
     assert( frag_list.size() == n_frag );
     for ( PS::S32 i=0; i<n_frag; i++ ){
         std::pair<PS::S32, PS::S32> adr = frag_list.at(i);
+        
+        if ( ptcl_multi[adr.first][adr.second].isMerged ) {
+            for ( PS::S32 j=0; j<ptcl_multi[adr.first].size(); j++ ) {
+                if ( ptcl_multi[adr.first][j].id == ptcl_multi[adr.first][adr.second].id &&
+                     j != adr.second ) {
+                    std::pair<bool,PS::S32> adr_j = list_multi.at(adr.first).at(j);
+                    if ( adr_j.first ) {
+                        pp[adr_j.second].id = id_frag_loc[i];
+                        assert ( pp[adr_j.second].isDead );
+                    } else {
+                        ex_pp[adr_j.second].id = id_frag_loc[i];
+                        assert ( ex_pp[adr_j.second].isDead );
+                    }
+                    ptcl_multi[adr.first][j].id = id_frag_loc[i];
+                    assert ( ptcl_multi[adr.first][j].isDead );
+                }
+            }
+        }
+        
         ptcl_multi[adr.first][adr.second].id = id_frag_loc[i];
         pp.addOneParticle(ptcl_multi[adr.first][adr.second]);
     }
