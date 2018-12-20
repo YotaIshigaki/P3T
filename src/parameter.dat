@@ -29,7 +29,7 @@ inc_hill        = 1.0                   # inclination dispersion to reduced Hill
 
 # FOR GAS DISK
 alpha_gas       = 11./4.                # power of density of gas disk
-beta_gas        = 0.5                  # power of temperature of gas disk
+beta_gas        = 0.5                   # power of temperature of gas disk
 f_gas           = 0.71                  # scaling factor of column density distribution
 tau_gas         = 0.                    # timescale of gas dissipation (no dissipation if tau_gas=0)
 C_d             = 1.                    # non-dimensional drag coefficient.
@@ -58,18 +58,18 @@ alpha           = 0.1                   # parameter alpha to decide timestep (ha
 # FOR GRAVITATONAL INTERACTION
 m_sun           = 1.                    # mass of central star
 dens            = 2.CGS                 # density of particles  
-eps             = 0.                    # Softening parameter                   
-R_cut           = 2.0                   # parameter to decide cut-off radius
-R_search0       = 2.0                   # parameter to decide search radius
-R_search1       = 3.0                   # parameter to decide search radius
-gamma           = 0.5                   # ratio of outer to inner cut-off radius
+eps             = 0.                    # softening parameter                   
+R_cut           = 2.0                   # parameter to determine cut-off radius
+R_search0       = 2.0                   # parameter to determine search radius
+R_search1       = 3.0                   # parameter to determine search radius
+gamma           = 0.5                   # outer to inner cut-off radius ratio
 rHill_min       = 3.15557400894e-04     # minimum Hill radius to decide cut-off radius
 #rHill_min       = 0.                   # minimum Hill radius to decide cut-off radius
 r_max           = 20.                   # maximum distance of particle from central star 
 r_min           = 0.1                   # minimum distance of particle from central star 
 
 # FOR COLLISION
-f               = 1.                    # Enhancement factor of particle radius
+f               = 1.                    # enhancement factor of particle radius
 m_min           = 1.e23/10.CGS          # minimum mass of fragment particle
 a_frag          = 0.0                   # ratio of total fragments mass to impactor mass
 N_frag          = 30
