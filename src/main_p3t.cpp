@@ -75,8 +75,8 @@ int main(int argc, char *argv[])
     
     char init_file[256] = "INIT_3000.dat";
     char output_dir[256] = "OUTPUT";
-    bool existsHeader = false;
-    bool isRestart    = false;
+    bool bHeader  = false;
+    bool bRestart = false;
 
     bool makeInit = false;
 
@@ -148,7 +148,7 @@ int main(int argc, char *argv[])
             break;
         }
     }
-    if ( readParameter(param_file, init_file, existsHeader, output_dir, isRestart,  makeInit,
+    if ( readParameter(param_file, init_file, bHeader, output_dir, bRestart,  makeInit,
                        coef_ema, nx, ny,
                        theta, n_leaf_limit, n_group_limit, n_smp_ave,
                        t_end, dt_snap, r_max, r_min, seed) ){
@@ -156,7 +156,7 @@ int main(int argc, char *argv[])
         PS::Abort();
         return 0;
     }
-    if (opt_r) isRestart = true;
+    if (opt_r) bRestart = true;
     if (opt_i) sprintf(init_file,"%s",init_file_opt);
     if (opt_s) seed = seed_opt;
     if (opt_o) sprintf(output_dir,"%s",output_dir_opt);
@@ -169,12 +169,12 @@ int main(int argc, char *argv[])
         PS::Abort();
         return 0;
     }
-    if ( isRestart ) {
+    if ( bRestart ) {
         if ( getLastSnap(dir_name, init_file) ) {
             PS::Abort();
             return 0;
         }
-        existsHeader = true;
+        bHeader = true;
         makeInit = false;
     }
 
@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
     std::vector<std::vector<PS::S32> > n_list;
     n_list.clear();
 
-    if ( makeInit && !isRestart ){
+    if ( makeInit && !bRestart ){
         //Make Initial condition
         SolidDisk::createInitialCondition(system_grav);
         istep = 0;
@@ -213,7 +213,7 @@ int main(int argc, char *argv[])
         sprintf(init_file, "NONE");
     } else {
         // Read Initial File
-        if ( existsHeader ) {
+        if ( bHeader ) {
             FileHeader header;
             PS::F64 dt_tree = FPGrav::dt_tree;
             system_grav.readParticleAscii(init_file, header);
@@ -362,7 +362,7 @@ int main(int argc, char *argv[])
     /*  Preparation Before Loop   */
     ////////////////////////////////
     e_now.calcEnergy(system_grav);
-    if ( !existsHeader ) e_init = e_now;
+    if ( !bHeader ) e_init = e_now;
     PS::F64 de =  e_now.calcEnergyError(e_init);
     
     Wtime wtime;

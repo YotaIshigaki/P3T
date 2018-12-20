@@ -11,35 +11,38 @@ CFLAGS += -ffast-math
 CFLAGS += -funroll-loops
 CFLAGS += -DPARTICLE_SIMULATOR_THREAD_PARALLEL -fopenmp
 CFLAGS += -DPARTICLE_SIMULATOR_MPI_PARALLEL
+CFLAGS += -DPARTICLE_SIMULATOR_SPMOM_F32
+
+#CFLAGS += -mtune=skylake-avx512
 #CFLAGS += -march=skylake-avx512
-CFLAGS += -march=core-avx2
+CFLAGS += -march=core-avx2 
+#CFLAGS += -mavx512f -mavx512dq  
 #CFLAGS += -mavx2
-#CFLAGS += -mavx512f -mavx512dq
-#CFLAGS += -DFAST_ALL_TO_ALL_FOR_K
 
 CFLAGS += -DUSE_QUAD
+CFLAGS += -DUSE_INDIVIDUAL_RADII  
 #CFLAGS += -DCALC_EP_64bit
 #CFLAGS += -DPARALLEL_I4J4
 #CFLAGS += -DCUTOFF_0
 CFLAGS += -DCOLLISION
-#CFLAGS += -DUSE_INDIVIDUAL_RADII
 CFLAGS += -DOUTPUT_DETAIL
 #CFLAGS += -DCHAMBERS
 #CFLAGS += -DGAS_DRAG
-CFLAGS += -DCALC_WTIME
+#CFLAGS += -DCALC_WTIME
+#CFLAGS += -DCHECK_NEIGHBOR
 CFLAGS += -DMONAR
+#CFLAGS += -g
 #CFLAGS += -DFORDEBUG
-CFLAGS += -DCHECK_NEIGHBOR
-CFLAGS += -g
-
 
 SRC = main_p3t.cpp
 PROGRAM = $(SRC:%.cpp=%.out)
 HEADER = mathfunc.h kepler.h energy.h particle.h disk.h gravity.h gravity_kernel.hpp collisionA.h collisionB.h hermite.h hard.h read.h time.h func.h
 
-$(PROGRAM): main_p3t.cpp gravity_kernel.o $(HEADER)
-	$(CC) $(INC) $(CFLAGS) -o $@ $< gravity_kernel.o
+$(PROGRAM): main_p3t.o gravity_kernel.o
+	$(CC) $(INC) $(CFLAGS) -o $@ main_p3t.o gravity_kernel.o
 
+main_p3t.o: main_p3t.cpp $(HEADER)
+	$(CC) $(INC) $(CFLAGS) -c $<
 
 gravity_kernel.o: gravity_kernel.cpp avx.h particle.h
 	$(CC) $(INC) $(CFLAGS) -c $<

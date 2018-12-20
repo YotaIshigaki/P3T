@@ -55,9 +55,9 @@ bool isPowerOf2(PS::F64 p0)
 
 PS::S32 readParameter(const char * param_file,
                       char * init_file,
-                      bool & existsHeader,
+                      bool & bHeader,
                       char * output_dir,
-                      bool & isRastert,
+                      bool & bRestert,
                       bool & makeInit,
                       PS::F64 & coef_ema,
                       PS::S32 & nx,
@@ -107,14 +107,14 @@ PS::S32 readParameter(const char * param_file,
         } else if ( name == "init_file" ){
             sprintf(init_file,"%s",value.c_str());
             
-        } else if ( name == "existsHeader" ){
-            existsHeader = std::atoi(value.c_str()) > 0;
+        } else if ( name == "Header" ){
+            bHeader = std::atoi(value.c_str()) > 0;
             
         } else if ( name == "output_dir" ){
             sprintf(output_dir,"%s",value.c_str());
             
-        } else if ( name == "isRestart" ){
-            isRastert = std::atoi(value.c_str()) > 0;
+        } else if ( name == "Restart" ){
+            bRestert = std::atoi(value.c_str()) > 0;
 
         } else if ( name == "makeInit" ){
             makeInit = std::atoi(value.c_str()) > 0;
