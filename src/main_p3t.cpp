@@ -211,6 +211,7 @@ int main(int argc, char *argv[])
         isnap = 0;
         time_sys = 0.;
         sprintf(init_file, "NONE");
+        bHeader = false;
     } else {
         // Read Initial File
         if ( bHeader ) {
@@ -239,11 +240,9 @@ int main(int argc, char *argv[])
     n_tot = system_grav.getNumberOfParticleGlobal();
 #pragma omp parallel for
     for ( PS::S32 i=0; i<n_loc; i++ ){
-        if ( system_grav[i].id > id_next ) {
 #pragma omp critical
-            {
-                id_next = system_grav[i].id;
-            }
+        {
+            if ( system_grav[i].id > id_next ) id_next = system_grav[i].id;
         }
         system_grav[i].time = time_sys;
         system_grav[i].neighbor = system_grav[i].n_cluster = 0;
