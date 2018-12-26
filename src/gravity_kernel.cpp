@@ -15,14 +15,14 @@ void CalcForceLongEP(const TParticleI * ep_i,
 #ifdef PARALLEL_I4J4
     const PS::S32 n_iparallel = 4;
     const PS::S32 n_jparallel = 4;
-    const PS::S32 N = 16;
+    //const PS::S32 N = 16;
     typedef v16sf VEC0;
     typedef v4sf  VEC1;
     typedef PS::F32  REAL;
 #else
     const PS::S32 n_iparallel = 8;
     const PS::S32 n_jparallel = 2;
-    const PS::S32 N = 32;
+    //const PS::S32 N = 32;
     typedef v16sf VEC0;
     typedef v8sf  VEC1;
     typedef PS::F32  REAL;
@@ -31,14 +31,14 @@ void CalcForceLongEP(const TParticleI * ep_i,
 #ifndef CALC_EP_64bit
     const PS::S32 n_iparallel = 4;
     const PS::S32 n_jparallel = 2;
-    const PS::S32 N = 16;
+    //const PS::S32 N = 16;
     typedef v8sf VEC0;
     typedef v4sf VEC1;
     typedef PS::F32  REAL;
 #else
     const PS::S32 n_iparallel = 2;
     const PS::S32 n_jparallel = 2;
-    const PS::S32 N = 16;
+    //const PS::S32 N = 16;
     typedef v4df VEC0;
     typedef v2df VEC1;
     typedef PS::F64  REAL;
@@ -60,10 +60,17 @@ void CalcForceLongEP(const TParticleI * ep_i,
 
     //#pragma omp parallel for 
     for (PS::S32 i = 0; i < n_ip; i += n_iparallel) {
-        REAL buf_px[n_iparallel] __attribute__((aligned(N)));
-        REAL buf_py[n_iparallel] __attribute__((aligned(N)));
-        REAL buf_pz[n_iparallel] __attribute__((aligned(N)));
-        REAL buf_rc[n_iparallel] __attribute__((aligned(N)));
+#if !defined(__AVX512F__) || defined(PARALLEL_I4J4)
+        REAL buf_px[n_iparallel] __attribute__((aligned(16)));
+        REAL buf_py[n_iparallel] __attribute__((aligned(16)));
+        REAL buf_pz[n_iparallel] __attribute__((aligned(16)));
+        REAL buf_rc[n_iparallel] __attribute__((aligned(16)));
+#else
+        REAL buf_px[n_iparallel] __attribute__((aligned(32)));
+        REAL buf_py[n_iparallel] __attribute__((aligned(32)));
+        REAL buf_pz[n_iparallel] __attribute__((aligned(32)));
+        REAL buf_rc[n_iparallel] __attribute__((aligned(32)));
+#endif
         const PS::S32 nii = std::min(n_ip - i, n_iparallel);
         for (PS::S32 ii = 0; ii < nii; ii++) {
             buf_px[ii] = (REAL)ep_i[i+ii].pos[0];
@@ -159,10 +166,17 @@ void CalcForceLongEP(const TParticleI * ep_i,
 #endif
         }
 
-        REAL buf_ax[n_iparallel] __attribute__((aligned(N)));
-        REAL buf_ay[n_iparallel] __attribute__((aligned(N)));
-        REAL buf_az[n_iparallel] __attribute__((aligned(N)));
-        REAL buf_pt[n_iparallel] __attribute__((aligned(N)));
+#if !defined(__AVX512F__) || defined(PARALLEL_I4J4)
+        REAL buf_ax[n_iparallel] __attribute__((aligned(16)));
+        REAL buf_ay[n_iparallel] __attribute__((aligned(16)));
+        REAL buf_az[n_iparallel] __attribute__((aligned(16)));
+        REAL buf_pt[n_iparallel] __attribute__((aligned(16)));
+#else
+        REAL buf_ax[n_iparallel] __attribute__((aligned(32)));
+        REAL buf_ay[n_iparallel] __attribute__((aligned(32)));
+        REAL buf_az[n_iparallel] __attribute__((aligned(32)));
+        REAL buf_pt[n_iparallel] __attribute__((aligned(32)));
+#endif
    
         ax_i.store(buf_ax);
         ay_i.store(buf_ay);
@@ -189,20 +203,20 @@ void CalcForceLongSP(const TParticleI * ep_i,
 #ifdef PARALLEL_I4J4
     const PS::S32 n_iparallel = 4;
     const PS::S32 n_jparallel = 4;
-    const PS::S32 N = 16;
+    //const PS::S32 N = 16;
     typedef v16sf VEC0;
     typedef v4sf  VEC1;
 #else
     const PS::S32 n_iparallel = 8;
     const PS::S32 n_jparallel = 2;
-    const PS::S32 N = 32;
+    //const PS::S32 N = 32;
     typedef v16sf VEC0;
     typedef v8sf  VEC1;
 #endif
 #else //__AVX512F__
     const PS::S32 n_iparallel = 4;
     const PS::S32 n_jparallel = 2;
-    const PS::S32 N = 16;
+    //const PS::S32 N = 16;
     typedef v8sf VEC0;
     typedef v4sf VEC1;
 #endif //__AVX512F__
@@ -222,10 +236,17 @@ void CalcForceLongSP(const TParticleI * ep_i,
     
     //#pragma omp parallel for 
     for(PS::S32 i = 0; i < n_ip; i += n_iparallel) {
-        PS::F32 buf_px[n_iparallel] __attribute__((aligned(N)));
-        PS::F32 buf_py[n_iparallel] __attribute__((aligned(N)));
-        PS::F32 buf_pz[n_iparallel] __attribute__((aligned(N)));
-        //PS::F32 buf_e2[n_iparallel] __attribute__((aligned(N)));
+#if !defined(__AVX512F__) || defined(PARALLEL_I4J4)
+        PS::F32 buf_px[n_iparallel] __attribute__((aligned(16)));
+        PS::F32 buf_py[n_iparallel] __attribute__((aligned(16)));
+        PS::F32 buf_pz[n_iparallel] __attribute__((aligned(16)));
+        //PS::F32 buf_e2[n_iparallel] __attribute__((aligned(16)));
+#else
+        PS::F32 buf_px[n_iparallel] __attribute__((aligned(32)));
+        PS::F32 buf_py[n_iparallel] __attribute__((aligned(32)));
+        PS::F32 buf_pz[n_iparallel] __attribute__((aligned(32)));
+        //PS::F32 buf_e2[n_iparallel] __attribute__((aligned(32)));
+#endif
         const PS::S32 nii = std::min(n_ip - i, n_iparallel);
         for(PS::S32 ii = 0; ii < nii; ii++) {
             buf_px[ii] = ep_i[i+ii].pos[0];
@@ -365,10 +386,17 @@ void CalcForceLongSP(const TParticleI * ep_i,
 #endif // USE_QUAD
         }
 
-        PS::F32 buf_ax[n_iparallel] __attribute__((aligned(N)));
-        PS::F32 buf_ay[n_iparallel] __attribute__((aligned(N)));
-        PS::F32 buf_az[n_iparallel] __attribute__((aligned(N)));
-        PS::F32 buf_pt[n_iparallel] __attribute__((aligned(N)));
+#if !defined(__AVX512F__) || defined(PARALLEL_I4J4)
+        PS::F32 buf_ax[n_iparallel] __attribute__((aligned(16)));
+        PS::F32 buf_ay[n_iparallel] __attribute__((aligned(16)));
+        PS::F32 buf_az[n_iparallel] __attribute__((aligned(16)));
+        PS::F32 buf_pt[n_iparallel] __attribute__((aligned(16)));
+#else
+        PS::F32 buf_ax[n_iparallel] __attribute__((aligned(32)));
+        PS::F32 buf_ay[n_iparallel] __attribute__((aligned(32)));
+        PS::F32 buf_az[n_iparallel] __attribute__((aligned(32)));
+        PS::F32 buf_pt[n_iparallel] __attribute__((aligned(32)));
+#endif
 
         ax_i.store(buf_ax);
         ay_i.store(buf_ay);
