@@ -406,7 +406,7 @@ inline PS::S32 HardSystem::addFragment2ParticleSystem(Tpsys & pp,
         std::pair<PS::S32, PS::S32> adr = frag_list.at(i);
         
         if ( ptcl_multi[adr.first][adr.second].isMerged ) {
-            for ( PS::S32 j=0; j<ptcl_multi[adr.first].size(); j++ ) {
+            for ( PS::S32 j=0; j<list_multi.at(adr.first).size(); j++ ) {
                 if ( ptcl_multi[adr.first][j].id == ptcl_multi[adr.first][adr.second].id &&
                      j != adr.second ) {
                     std::pair<bool,PS::S32> adr_j = list_multi.at(adr.first).at(j);
