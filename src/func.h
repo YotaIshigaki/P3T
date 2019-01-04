@@ -355,6 +355,8 @@ void MergeParticle(Tpsys & pp,
 #ifdef GAS_DRAG
                     pp[i].acc_gd = ( mi*pp[i].acc_gd + mj*pp[j].acc_gd )/(mi+mj);
 #endif
+                    pp[i].phi   = ( mi*pp[i].phi   + mj*pp[j].phi   )/(mi+mj);
+                    pp[i].phi_d = ( mi*pp[i].phi_d + mj*pp[j].phi_d )/(mi+mj);
                     
                     edisp_loc -= 0.5 * mi*mj/(mi+mj) * vrel*vrel;
 #pragma omp critical
@@ -388,23 +390,30 @@ void removeOutOfBoundaryParticle(Tpsys & pp,
     PS::F64 rmin2 = r_min*r_min;
     PS::F64 edisp_loc = 0.;
     const PS::S32 n_loc = pp.getNumberOfParticleLocal();
+
+    PS::S32 i_remove = -1;
     
-#pragma omp parallel for reduction (-:edisp_loc)
+#pragma omp parallel for
     for ( PS::S32 i=0; i<n_loc; i++ ){
-        PS::F64    massi = pp[i].mass;
         PS::F64vec posi = pp[i].pos;
-        PS::F64vec veli = pp[i].vel;
         PS::F64    pos2 = posi*posi;
         if ( pos2 > rmax2 || pos2 < rmin2 ){
-            edisp_loc -= 0.5*massi* veli*veli;
-            edisp_loc -= massi * pp[i].phi_s;
-            edisp_loc -= massi * pp[i].phi_d;
-            edisp_loc -= massi * pp[i].phi;
 #pragma omp critical
             {
-                pp.removeParticle(&i, 1);
+                i_remove = i;
             }
         }
+    }
+
+    if ( i_remove > -1 ){
+        PS::F64    massi = pp[i_remove].mass;
+        PS::F64vec veli = pp[i_remove].vel;
+        edisp_loc -= 0.5*massi* veli*veli;
+        edisp_loc -= massi * pp[i_remove].phi_s;
+        edisp_loc -= massi * pp[i_remove].phi_d;
+        edisp_loc -= massi * pp[i_remove].phi;
+
+        pp.removeParticle(&i_remove, 1);
     }
     edisp += PS::Comm::getSum(edisp_loc);
 }

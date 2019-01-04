@@ -95,19 +95,21 @@ inline PS::S32 Collision::collisionOutcome(std::vector<Tp> & pfrag)
     PS::F64vec massvel = 0.;
     PS::F64vec masspos = 0.;
 
-    PS::F64vec ximp = pos_imp - pos_tar;
-    PS::F64vec vimp = vel_imp - vel_tar;
-    PS::F64 r_frag = 1.05 * f * pow(0.75*mass_rem/(M_PI*dens), 1./3.);
-    PS::F64 r2_frag = r_frag*r_frag + eps2;
-    PS::F64 r_frag_inv = sqrt( 1. / r2_frag );
-    PS::F64 v_frag = 1.05 * sqrt( 2. * mass_rem * r_frag_inv );
+    if ( n_frag ) {
+        PS::F64vec ximp = pos_imp - pos_tar;
+        PS::F64vec vimp = vel_imp - vel_tar;
+        PS::F64 r_frag = 2. * f * pow(0.75*mass_rem/(M_PI*dens), 1./3.);
+        PS::F64 r2_frag = r_frag*r_frag + eps2;
+        PS::F64 r_frag_inv = sqrt( 1. / r2_frag );
+        PS::F64 v_frag = 1.05 * sqrt( 2. * mass_rem * r_frag_inv );
 
-    std::vector<PS::F64> mass_f(n_frag, mass_frag/n_frag);
-    
-    setFragmentCircle(pfrag, masspos, massvel,
-                      mass_f, pos_g, vel_g, r_frag, v_frag,
-                      ximp, vimp);
-
+        std::vector<PS::F64> mass_f(n_frag, mass_frag/n_frag);
+        
+        setFragmentCircle(pfrag, masspos, massvel,
+                          mass_f, pos_g, vel_g, r_frag, v_frag,
+                          ximp, vimp);
+    }
+        
     pos_imp_new = pos_tar_new = (mass_imp*pos_imp+mass_tar*pos_tar-masspos)/mass_rem;
     vel_imp_new = vel_tar_new = (mass_imp*vel_imp+mass_tar*vel_tar-massvel)/mass_rem;
     
@@ -260,19 +262,21 @@ inline PS::S32 Collision::collisionOutcome(std::vector<Tp> & pfrag)
         mass_frag = n_frag ? mass_frag : 0.;
         mass_rem = mass_imp + mass_tar - mass_frag;
         
-        //Position & Velocity       
-        PS::F64vec ximp = pos_imp - pos_tar;
-        PS::F64vec vimp = vel_imp - vel_tar;
-        PS::F64 r_frag = 2. * f * pow(0.75*mass_rem/(M_PI*FPGrav::dens), 1./3.);
-        PS::F64 r2_frag = r_frag*r_frag + eps2;
-        PS::F64 r_frag_inv = sqrt( 1. / r2_frag );
-        PS::F64 v_frag = 1.05 * sqrt( 2. * mass_rem * r_frag_inv );
-
-        std::vector<PS::F64> mass_f(n_frag, mass_frag/n_frag);
+        //Position & Velocity
+        if ( n_frag ) {
+            PS::F64vec ximp = pos_imp - pos_tar;
+            PS::F64vec vimp = vel_imp - vel_tar;
+            PS::F64 r_frag = 2. * f * pow(0.75*mass_rem/(M_PI*FPGrav::dens), 1./3.);
+            PS::F64 r2_frag = r_frag*r_frag + eps2;
+            PS::F64 r_frag_inv = sqrt( 1. / r2_frag );
+            PS::F64 v_frag = 1.05 * sqrt( 2. * mass_rem * r_frag_inv );
         
-        setFragmentCircle(pfrag, masspos, massvel,
-                          mass_f, pos_g, vel_g, r_frag, v_frag,
-                          ximp, vimp);
+            std::vector<PS::F64> mass_f(n_frag, mass_frag/n_frag);
+            
+            setFragmentCircle(pfrag, masspos, massvel,
+                              mass_f, pos_g, vel_g, r_frag, v_frag,
+                              ximp, vimp);
+        }
 
         pos_imp_new = pos_tar_new = (mass_imp*pos_imp+mass_tar*pos_tar-masspos)/mass_rem;
         vel_imp_new = vel_tar_new = (mass_imp*vel_imp+mass_tar*vel_tar-massvel)/mass_rem;

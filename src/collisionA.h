@@ -119,7 +119,8 @@ inline void Collision0::inputPair(Tpsys & pp,
     vel_tar = pp[id_c_tar].vel;
     PS::F64vec ximp = pos_imp - pos_tar;
     PS::F64vec vimp = vel_imp - vel_tar;
-    col_angle = acos(-(ximp*vimp)/(sqrt(ximp*ximp)*sqrt(vimp*vimp)));
+    PS::F64 cos = std::max(std::min(-(ximp*vimp)/(sqrt(ximp*ximp)*sqrt(vimp*vimp)), 1.), -1.);
+    col_angle = acos(cos);
 
     mass_imp = pp[id_c_imp].mass;
     mass_tar = pp[id_c_tar].mass;

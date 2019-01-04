@@ -447,6 +447,7 @@ int main(int argc, char *argv[])
         countSendParticle(system_grav, ex_tot, ex_loc, ex_nei_loc); 
         //std::cerr << "Rank:" << PS::Comm::getRank() << " RecvRank:" << recv_rank
         //          << " ex_loc = " << ex_loc << std::endl;
+        //if ( PS::Comm::getRank() == 0 ) std::cerr << "ex_tot = "  << ex_tot << std::endl; 
 #ifdef CALC_WTIME
         PS::Comm::barrier();
         wtime.create_cluster += wtime.create_cluster_step = wtime.lap(PS::GetWtime());
