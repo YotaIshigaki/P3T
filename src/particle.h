@@ -138,13 +138,9 @@ class FPGrav : public EPGrav {
         PS::F64 r = sqrt(pos*pos);
         PS::F64 rv = pos*vel;
         ax = 1.0 / (2.0/r - vel*vel/m_sun);
-        if ( ax > 0. ){
-            PS::F64 ecccosu = 1. - r/ax;
-            PS::F64 eccsinu = rv/sqrt(m_sun*ax);
-            return sqrt(ecccosu*ecccosu + eccsinu*eccsinu);
-        } else {
-            return 1.;
-        }
+        PS::F64 ecccosu = 1. - r/ax;
+        PS::F64 eccsinu2 = rv*rv/(m_sun*ax);
+        return sqrt(ecccosu*ecccosu + eccsinu2);
     }
     PS::F64 getInclination(PS::F64vec & h) const {
         h.x = pos.y*vel.z - pos.z*vel.y;
