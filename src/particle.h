@@ -155,7 +155,7 @@ class FPGrav : public EPGrav {
             return pow(mass/(3.*m_sun), 1./3.) * ax;
         } else {
 #endif
-            return pow(mass/(3.*m_sun), 1./3.) * pos*pos;
+            return pow(mass/(3.*m_sun), 1./3.) * sqrt(pos*pos);
 #ifndef ISOTROPIC
         }
 #endif
