@@ -91,7 +91,7 @@ bool collisionDetermination(Tpsys & pp,
 {
     PS::F64 R_min = 1.;
     bool flag_col = false;
-    
+
     if ( col_pair.first > -1 && col_pair.second > -1 ){
         PS::F64vec dr = pp[col_pair.first].xp - pp[col_pair.second].xp;
         PS::F64 r1 = sqrt(dr*dr);
@@ -106,13 +106,13 @@ bool collisionDetermination(Tpsys & pp,
             PS::S32 pj_id = pp[i].n_hard_list.at(j);
             if ( pp[pj_id].isDead ) continue;
             PS::F64vec dr = pp[i].xp - pp[pj_id].xp;
-            //PS::F64vec dv = pp[i].vp - pp[pj_id].vp;
+            PS::F64vec dv = pp[i].vp - pp[pj_id].vp;
             PS::F64 r1 = sqrt(dr*dr);
             PS::F64 r2 = pp[i].r_planet + pp[pj_id].r_planet;
             PS::F64 R = r1 / ( f * r2 );
             if ( R < R_min ){
                 if ( ( col_pair == std::make_pair(i, pj_id) || col_pair == std::make_pair(pj_id, i) )
-                     /*|| dr*dv > 0.*/ ) continue;
+                     || dr*dv > 0. ) continue;
                 R_min = R;
                 if ( pp[i].mass < pp[pj_id].mass ){
                     col_pair.first = i;

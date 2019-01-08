@@ -294,8 +294,8 @@ void showParameter(char * init_file,
                    PS::F64 r_min,
                    PS::S32 seed)
 {
-    const PS::F64 L = 149597870700;
-    const PS::F64 M = 1.9884e30;
+    const PS::F64 L = 14959787070000;
+    const PS::F64 M = 1.9884e33;
     //const PS::F64 T = 365.25*24.*60.*60./(2.*M_PI);
     
     if ( PS::Comm::getRank() == 0 ){
@@ -311,7 +311,7 @@ void showParameter(char * init_file,
         if ( makeInit ){
             std::cout << std::scientific << std::setprecision(15)
                       << "n_init        = " << SolidDisk::n_init << std::endl
-                      << "m_init        = " << SolidDisk::m_init << "\t(" << SolidDisk::m_init*M << " kg)" << std::endl
+                      << "m_init        = " << SolidDisk::m_init << "\t(" << SolidDisk::m_init*M << " g)" << std::endl
                       << "p             = " << SolidDisk::p << std::endl
                       << "f_dust        = " << SolidDisk::f_dust << std::endl
                       << "eta_ice       = " << SolidDisk::eta_ice << std::endl
@@ -346,22 +346,22 @@ void showParameter(char * init_file,
                   << "eta           = " << FPGrav::eta  << std::endl
                   << "eta_0         = " << FPGrav::eta_0 << std::endl
                   << "alpha         = " << sqrt(FPGrav::alpha2) << std::endl
-                  << "m_sun         = " << FPGrav::m_sun << "\t(" << FPGrav::m_sun*M << " kg)" << std::endl
-                  << "dens          = " << FPGrav::dens << "\t(" << FPGrav::dens*M/(L*L*L) << " kg/m^3)"<< std::endl
-                  << "eps           = " << sqrt(EPGrav::eps2) << "\t(" << sqrt(EPGrav::eps2)*L << " m)"<< std::endl
+                  << "m_sun         = " << FPGrav::m_sun << "\t(" << FPGrav::m_sun*M << " g)" << std::endl
+                  << "dens          = " << FPGrav::dens << "\t(" << FPGrav::dens*M/(L*L*L) << " g/cm^3)"<< std::endl
+                  << "eps           = " << sqrt(EPGrav::eps2) << "\t(" << sqrt(EPGrav::eps2)*L << " cm)"<< std::endl
                   << std::fixed << std::setprecision(5)
                   << "R_cut         = " << EPGrav::R_cut << std::endl
                   << "R_search0     = " << EPGrav::R_search0 << std::endl
                   << "R_search1     = " << EPGrav::R_search1 << std::endl
                   << "gamma         = " << EPGrav::gamma << std::endl
                   << std::scientific << std::setprecision(15)
-                  << "rHill_min     = " << FPGrav::rHill_min << "\t(" << FPGrav::rHill_min*L << " m)"<< std::endl
+                  << "rHill_min     = " << FPGrav::rHill_min << "\t(" << FPGrav::rHill_min*L << " cm)"<< std::endl
                   << std::fixed << std::setprecision(5)
                   << "r_max         = " << r_max << std::endl
                   << "r_min         = " << r_min << std::endl
                   << "f             = " << HardSystem::f << std::endl
                   << std::scientific << std::setprecision(15)
-                  << "m_min         = " << Collision0::m_min << "\t(" << Collision0::m_min*M << " kg)" << std::endl;
+                  << "m_min         = " << Collision0::m_min << "\t(" << Collision0::m_min*M << " g)" << std::endl;
 
         Collision::showParameter();
         
@@ -394,6 +394,12 @@ void showParameter(char * init_file,
 #ifdef GAS_DRAG
         fout_param << "Use Gas Drag" << std::endl;
 #endif
+#ifdef CHAMBERS
+        fout_param << "Use Chambers Model" << std::endl;
+#endif
+#ifdef ISOTROPIC
+        fout_param << "Use Isotropic Method to Set CutOff Radii & Search Radii" << std::endl;
+#endif 
         fout_param << std::endl;
 
         fout_param << "Number Of Processes:\t" << PS::Comm::getNumberOfProc() << std::endl;
@@ -406,7 +412,7 @@ void showParameter(char * init_file,
         if ( makeInit ){
             fout_param << std::scientific << std::setprecision(15)
                        << "n_init        = " << SolidDisk::n_init << std::endl
-                       << "m_init        = " << SolidDisk::m_init << "\t(" << SolidDisk::m_init*M << " kg)" << std::endl
+                       << "m_init        = " << SolidDisk::m_init << "\t(" << SolidDisk::m_init*M << " g)" << std::endl
                        << "p             = " << SolidDisk::p << std::endl
                        << "f_dust        = " << SolidDisk::f_dust << std::endl
                        << "eta_ice       = " << SolidDisk::eta_ice << std::endl
@@ -441,22 +447,22 @@ void showParameter(char * init_file,
                    << "eta           = " << FPGrav::eta  << std::endl
                    << "eta_0         = " << FPGrav::eta_0 << std::endl
                    << "alpha         = " << sqrt(FPGrav::alpha2) << std::endl
-                   << "m_sun         = " << FPGrav::m_sun << "\t(" << FPGrav::m_sun*M << " kg)" << std::endl
-                   << "dens          = " << FPGrav::dens << "\t(" << FPGrav::dens*M/(L*L*L) << " kg/m^3)"<< std::endl
-                   << "eps           = " << sqrt(EPGrav::eps2) << "\t(" << sqrt(EPGrav::eps2)*L << " m)"<< std::endl
+                   << "m_sun         = " << FPGrav::m_sun << "\t(" << FPGrav::m_sun*M << " g)" << std::endl
+                   << "dens          = " << FPGrav::dens << "\t(" << FPGrav::dens*M/(L*L*L) << " g/cm^3)"<< std::endl
+                   << "eps           = " << sqrt(EPGrav::eps2) << "\t(" << sqrt(EPGrav::eps2)*L << " cm)"<< std::endl
                    << std::fixed << std::setprecision(5)
                    << "R_cut         = " << EPGrav::R_cut << std::endl
                    << "R_search0     = " << EPGrav::R_search0 << std::endl
                    << "R_search1     = " << EPGrav::R_search1 << std::endl
                    << "gamma         = " << EPGrav::gamma << std::endl
                    << std::scientific << std::setprecision(15)
-                   << "rHill_min     = " << FPGrav::rHill_min << "\t(" << FPGrav::rHill_min*L << " m)"<< std::endl
+                   << "rHill_min     = " << FPGrav::rHill_min << "\t(" << FPGrav::rHill_min*L << " cm)"<< std::endl
                    << std::fixed << std::setprecision(5)
                    << "r_max         = " << r_max << std::endl
                    << "r_min         = " << r_min << std::endl
                    << "f             = " << HardSystem::f << std::endl
                    << std::scientific << std::setprecision(15)
-                   << "m_min         = " << Collision0::m_min << "\t(" << Collision0::m_min*M << " kg)" << std::endl;
+                   << "m_min         = " << Collision0::m_min << "\t(" << Collision0::m_min*M << " g)" << std::endl;
 
         Collision::showParameter(fout_param);
         fout_param.close();

@@ -149,12 +149,16 @@ class FPGrav : public EPGrav {
         return atan2(sqrt(h.x*h.x + h.y*h.y), h.z);
     }
     PS::F64 getRHill() const {
+#ifndef ISOTROPIC
         PS::F64 ax = 1.0 / (2.0/sqrt(pos*pos) - vel*vel/m_sun);
         if ( ax > 0. ){
             return pow(mass/(3.*m_sun), 1./3.) * ax;
         } else {
+#endif
             return pow(mass/(3.*m_sun), 1./3.) * pos*pos;
+#ifndef ISOTROPIC
         }
+#endif
     }
     //PS::F64 getRHill() const {
     //    return pow(mass/(3.*m_sun), 1./3.);
@@ -171,17 +175,27 @@ class FPGrav : public EPGrav {
         
         r_out     = R_cut    *rHill;
         r_out_inv = 1. / r_out;
+#ifndef ISOTROPIC
         r_search  = R_search0*rHill + R_search1*vdisp_k*v_kep*dt_tree;
+#else
+        r_search  = R_search0*rHill + R_search1*vdisp_k*dt_tree;
+#endif
         
         return rHill;
     }
 #else
     static void setROutRSearch(PS::F64 rHill_glb,
+#ifndef ISOTROPIC
                                PS::F64 v_kep_glb,
+#endif
                                PS::F64 vdisp_k){
         r_out     = R_cut    *rHill_glb;
         r_out_inv = 1. / r_out;
+#ifndef ISOTROPIC
         r_search  = R_search0*rHill_glb + R_search1*vdisp_k*v_kep_glb*dt_tree;
+#else
+        r_search  = R_search0*rHill_glb + R_search1*vdisp_k*dt_tree;
+#endif
     }
 #endif
     void setRPlanet(PS::F64 m) {
@@ -443,35 +457,78 @@ PS::F64 calcVelDisp(Tpsys & pp,
     return sqrt(ecc_rms2 + inc_rms2);
 }
 
+#ifdef ISOTROPIC
+
+template <class Tpsys>
+PS::F64 calcRandomVel(Tpsys & pp,
+                      const PS::S32 n_tot,
+                      const PS::S32 n_loc)
+{
+    PS::F64    vel2_sum_loc = 0.;
+    PS::F64vec vel_sum_loc  = 0.;
+
+#pragma omp parallel for reduction (+:vel2_sum_loc, vel_sum_loc)
+    for(PS::S32 i=0; i<n_loc; i++){
+        PS::F64vec vel  = pp[i].vel;
+        PS::F64    vel2 = vel*vel;
+
+        vel2_sum_loc += vel2;
+        vel_sum_loc  += vel;
+    }
+
+    PS::F64    vel2_ave = PS::Comm::getSum(vel2_sum_loc)/n_tot;
+    PS::F64vec vel_ave  = PS::Comm::getSum(vel_sum_loc)/n_tot;
+    
+    return sqrt(vel2_ave - vel_ave*vel_ave);
+}
+
+#endif
+
 template <class Tpsys>
 void setCutoffRadii(Tpsys & pp)
 {
     const PS::S32 n_loc = pp.getNumberOfParticleLocal();
     const PS::S32 n_tot = pp.getNumberOfParticleGlobal();
+#ifndef ISOTROPIC
     PS::F64 v_disp_k = calcVelDisp(pp, n_tot, n_loc);
+#else
+    PS::F64 v_disp   = calcRandomVel(pp, n_tot, n_loc);
+#endif
     
 #ifdef USE_INDIVIDUAL_RADII
 #pragma omp parallel for
     for(PS::S32 i=0; i<n_loc; i++){
+#ifndef ISOTROPIC
         pp[i].setROutRSearch(v_disp_k);
+#else
+        pp[i].setROutRSearch(v_disp);
+#endif
         pp[i].setRPlanet();
     }
-#else
+#else //USE_INDIVIDUAL_RADII
     PS::F64 rHill_loc = 0.;
     PS::F64 v_kep_loc = 0.;
 #pragma omp parallel for
     for(PS::S32 i=0; i<n_loc; i++){
         PS::F64 rHill = std::max(pp[i].getRHill(), FPGrav::rHill_min);
+#ifndef ISOTROPIC
         PS::F64 v_kep = pp[i].getKeplerVelocity();
+#endif
 #pragma omp critical
         {
             if ( rHill > rHill_loc ) rHill_loc = rHill;
+#ifndef ISOTROPIC
             if ( v_kep > v_kep_loc ) v_kep_loc = v_kep;
+#endif
         }
         pp[i].setRPlanet();
     }
     PS::F64 rHill_glb = PS::Comm::getMaxValue(rHill_loc);
+#ifndef ISOTROPIC
     PS::F64 v_kep_glb = PS::Comm::getMaxValue(v_kep_loc);
     FPGrav::setROutRSearch(rHill_glb, v_kep_glb, v_disp_k);
+#else
+    FPGrav::setROutRSearch(rHill_glb, v_disp);
 #endif
+#endif //USE_INDIVIDUAL_RADII
 }
