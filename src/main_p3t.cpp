@@ -662,11 +662,11 @@ int main(int argc, char *argv[])
                 
                 // Remove Particle Out Of Boundary
                 removeOutOfBoundaryParticle(system_grav, e_now.edisp, r_max, r_min);
-                
-                // Reset Number Of Particles
-                n_tot = system_grav.getNumberOfParticleGlobal();
-                n_loc = system_grav.getNumberOfParticleLocal();
             }
+                
+            // Reset Number Of Particles
+            n_tot = system_grav.getNumberOfParticleGlobal();
+            n_loc = system_grav.getNumberOfParticleLocal();
             
 #ifdef CALC_WTIME
             PS::Comm::barrier();
