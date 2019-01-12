@@ -157,8 +157,8 @@ class FPGrav : public EPGrav {
             return pow(mass/(3.*m_sun), 1./3.) * sqrt(pos*pos);
         }
 #else
-        //return sqrt(mass/m_sun) * sqrt(pos*pos);
-        return sqrt(mass/m_sun);
+        return sqrt(mass/m_sun) * sqrt(pos*pos);
+        //return sqrt(mass/m_sun);
 #endif
     }
     //PS::F64 getRHill() const {
