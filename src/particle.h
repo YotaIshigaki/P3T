@@ -154,10 +154,10 @@ class FPGrav : public EPGrav {
         if ( ax > 0. ){
             return pow(mass/(3.*m_sun), 1./3.) * ax;
         } else {
-#endif
             return pow(mass/(3.*m_sun), 1./3.) * sqrt(pos*pos);
-#ifndef ISOTROPIC
         }
+#else
+        return sqrt(mass/m_sun) * sqrt(pos*pos);
 #endif
     }
     //PS::F64 getRHill() const {
